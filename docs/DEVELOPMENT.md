@@ -98,6 +98,6 @@ node tools/site/build.mjs     # 生成 site/（首页 + 文档静态页 + Web �
 # 本地预览：npx serve site 或 python -m http.server -d site
 ```
 
-文档源就是仓库里的 Markdown，站点构建复用 `public/js/render.js`，无需额外依赖。
+文档源就是仓库里的 Markdown，站点构建复用 `public/js/render.js`，只用到 Node 标准库。
 
 ![文档站首页](screenshots/site-home.png)

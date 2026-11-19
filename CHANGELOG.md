@@ -19,8 +19,8 @@
 
 ### 变更
 
-- 朗读去掉浮动播放条，改为回答操作栏喇叭按钮就地切换
-- 思考强度文案改为官方 `low / high / max`；去掉深度思考多余说明文字
+- 朗读交互改为回答操作栏喇叭按钮就地切换
+- 思考强度文案改为官方 `low / high / max`；深度思考行只保留开关
 - 系统提示词支持自定义（≤2000 字）与 6 套模板
 
 ### 文档
@@ -32,7 +32,7 @@
 
 ### 新增
 
-- Android APK（WebView 直连 `api.deepseek.com`，本地资产拦截，无需电脑）
+- Android APK（WebView 直连 `api.deepseek.com`，本地资产拦截，手机独立运行）
 - 浏览器/PWA 模式（`server.mjs`：SSE 代理、HTTPS 自签、二维码、离线 Mock）
 - 深度思考、智能搜索与引用、图片/文档输入、Markdown/代码/Mermaid/公式
 - 语音输入（WAV → ASR）与朗读（TTS），会话管理与导入导出

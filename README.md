@@ -30,7 +30,7 @@
 
 ## 1. 它长什么样
 
-按官方 App 2.8 重做：首页「嗨！今天想聊些什么？」、顶栏三段式、输入卡「发消息或按住说话」、设置分组白卡、无头像的极简消息排版。
+按官方 App 2.8 重做：首页「嗨！今天想聊些什么？」、顶栏三段式、输入卡「发消息或按住说话」、设置分组白卡、极简消息排版。
 
 | 首页 | 对话（思考 / 搜索 / 引用） | 深度思考展开 |
 | --- | --- | --- |
@@ -70,7 +70,7 @@
 ### 语音
 
 - **语音输入**：WebAudio 采集 → 16kHz 单声道 WAV → `/v1/tools/asr`；支持**按住说话**（松手自动识别并发送）
-- **朗读**：`/v1/tools/tts`，`stella` / `tide` 双音色、语速 0.6–1.6x、长文分句；播放/停止就在回答的喇叭按钮上切换，**无浮动播放条**
+- **朗读**：`/v1/tools/tts`，`stella` / `tide` 双音色、语速 0.6–1.6x、长文分句；播放与停止都在回答的喇叭按钮上完成，状态显示在消息内
 
 ### 会话与个性化
 
@@ -141,7 +141,7 @@ npm run build:android:win      # Windows（android/build.ps1）
 # 产物：android/dist/DeepSeekPocket-<version>.apk
 ```
 
-APK 内 WebView 的页面源是 `https://appassets.local`（安全上下文），资源由 `shouldInterceptRequest` 从 APK assets 提供，页面直接带 `Authorization` 调 `api.deepseek.com`（平台已支持 CORS）。**因此手机端不需要电脑、不需要代理。**
+APK 内 WebView 的页面源是 `https://appassets.local`（安全上下文），资源由 `shouldInterceptRequest` 从 APK assets 提供，页面直接带 `Authorization` 调 `api.deepseek.com`（平台已支持 CORS）。**手机端可独立运行，直接连接开放平台。**
 
 ---
 
@@ -249,7 +249,7 @@ Android APK ── WebView(https://appassets.local, assets 拦截) ──┐
 ### 9.3 构建 APK
 
 需要 JDK 17+、Android SDK（build-tools + `platforms/android-34+`）。
-`android/build.sh` 手工完成 `aapt2 → javac → d8 → zip dex → zipalign → apksigner`，不依赖 Gradle。
+`android/build.sh` 用 `aapt2 → javac → d8 → zip dex → zipalign → apksigner` 手工完成构建。
 
 ### 9.4 GitHub Actions
 

@@ -193,7 +193,7 @@ const index = `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8" />
       </div>
       <h1>手机上的 DeepSeek<br />用你自己的额度</h1>
       <p class="lead">深度思考 · 智能搜索与引用 · 语音输入与朗读 · 多会话 · 系统提示词。<br />
-      Android APK 直连开放平台，不需要电脑；也可以直接在浏览器里用。</p>
+      Android APK 独立运行、直连开放平台；也可以直接在浏览器里用。</p>
       <div class="cta">
         <a class="btn" href="${REPO}/releases/latest">下载 Android APK</a>
         <a class="btn ghost" href="./app/?direct=1">在浏览器中打开</a>

@@ -127,7 +127,7 @@ flowchart LR
 
 ## 边界与取舍
 
-- **为什么 APK 不用代理**：平台支持 CORS，直连少一层、无端口、无电脑依赖；代价是 Key 存在 WebView 存储里。
+- **为什么 APK 采用直连**：平台支持 CORS，少一层转发、本地也无需监听端口；代价是 Key 存在 WebView 存储里。
 - **为什么浏览器要代理**：CORS + 麦克风需要 HTTPS + 统一安全头与限流。
 - **为什么用 Chat Completions**：见 [README 的协议说明](../README.md#5-计费说明)。
 - **为什么零依赖**：便于审计与离线；代价是自研 Markdown/Mermaid 集成与手工 APK 工具链。
