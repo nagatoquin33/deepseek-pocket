@@ -189,7 +189,8 @@ export function createClient({ key = '', base = '/api', direct = (typeof locatio
       if (direct) {
         return {
           native: true,
-          version: (typeof window !== 'undefined' && window.DSAndroid?.version?.()) || '1.0.0',
+          version: (typeof window !== 'undefined' && (window.DSAndroid?.version?.()
+        || document.querySelector('meta[name="app-version"]')?.content)) || '1.0.0',
           https: true,
           hasEnvKey: false,
           mock: false,

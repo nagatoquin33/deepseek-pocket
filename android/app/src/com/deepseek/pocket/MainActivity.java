@@ -355,7 +355,13 @@ public class MainActivity extends Activity {
 
     public class Bridge {
         @JavascriptInterface
-        public String version() { return "1.0.0"; }
+        public String version() {
+            try {
+                return getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
+            } catch (Throwable e) {
+                return "1.0.0";
+            }
+        }
 
         @JavascriptInterface
         public boolean isAndroid() { return true; }

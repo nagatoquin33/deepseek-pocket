@@ -9,10 +9,11 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+export ROOT_DIR="$ROOT"
 APP="$ROOT/android/app"
 BUILD="$ROOT/android/build"
 DIST="$ROOT/android/dist"
-VERSION_NAME="${VERSION_NAME:-1.0.0}"
+VERSION_NAME="${VERSION_NAME:-$(node -p "require(process.env.ROOT_DIR + '/package.json').version" 2>/dev/null || echo 1.0.0)}"
 VERSION_CODE="${VERSION_CODE:-${GITHUB_RUN_NUMBER:-1}}"
 
 SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"

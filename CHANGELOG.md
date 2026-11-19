@@ -2,6 +2,12 @@
 
 本项目遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)；提交信息参考 Conventional Commits。
 
+## [1.0.3] - 2026-11-19
+
+### 修复
+
+- 应用内版本号仍显示 1.0.0：改为读取已安装包的 versionName，版本号统一以 package.json 为单一来源
+
 ## [1.0.2] - 2026-11-19
 
 ### 修复
@@ -50,6 +56,7 @@
 - 开放平台余额、费用估算、系统提示词、深色模式、PWA 安装
 - 132 项自动化测试；GitHub Actions 自动测试、打包 APK、tag 发布 Release
 
+[1.0.3]: https://github.com/nagatoquin33/deepseek-pocket/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/nagatoquin33/deepseek-pocket/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/nagatoquin33/deepseek-pocket/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/nagatoquin33/deepseek-pocket/releases/tag/v1.0.0

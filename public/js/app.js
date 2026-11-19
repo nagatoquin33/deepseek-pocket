@@ -21,7 +21,7 @@ import {
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
 
-const VERSION = '1.0.0';
+const VERSION = document.querySelector('meta[name="app-version"]')?.content || '1.0.0';
 const MODEL_LABEL = {
   'deepseek-flash': 'DeepSeek',
   'deepseek-v4-pro': 'DeepSeek Pro',

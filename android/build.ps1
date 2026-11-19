@@ -2,10 +2,17 @@
 # Android APK 手工构建（无需 Gradle / Android Studio）
 #   aapt2 compile+link → javac → d8 → zip classes.dex → zipalign → apksigner
 # 用法： powershell -ExecutionPolicy Bypass -File android\build.ps1
-# 产物： android\dist\DeepSeekPocket-1.0.0.apk
+# 产物： android\dist\DeepSeekPocket-<package.json version>.apk
 # =============================================================================
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot          # deepseek-mobile
+try {
+    $pkgText = [System.IO.File]::ReadAllText((Join-Path $root 'package.json'), [System.Text.Encoding]::UTF8)
+    $APP_VERSION = ($pkgText | ConvertFrom-Json).version
+} catch {
+    $APP_VERSION = '1.0.0'
+}
+if (-not $APP_VERSION) { $APP_VERSION = '1.0.0' }
 $app = Join-Path $PSScriptRoot 'app'
 $sdk = 'D:\ai\apk-build\sdk'
 # 优先使用 build-tools 36（其 D8 修复了旧版对 JDK 21 字节码的解析崩溃）
@@ -77,7 +84,7 @@ Write-Host "== aapt2 链接资源 ==" -ForegroundColor Cyan
     --min-sdk-version 24 `
     --target-sdk-version 34 `
     --version-code 1 `
-    --version-name '1.0.0' `
+    --version-name $APP_VERSION `
     --auto-add-overlay `
     $resZip
 if ($LASTEXITCODE -ne 0) { throw "aapt2 link 失败" }
@@ -148,7 +155,7 @@ $aligned = Join-Path $build 'aligned.apk'
 & $zipalign -f 4 $baseApk $aligned
 if ($LASTEXITCODE -ne 0) { throw "zipalign 失败" }
 
-$apk = Join-Path $dist 'DeepSeekPocket-1.0.0.apk'
+$apk = Join-Path $dist "DeepSeekPocket-$APP_VERSION.apk"
 $apksigner = Join-Path $bt 'apksigner.bat'
 & $apksigner sign --ks $ks --ks-pass pass:android --key-pass pass:android `
     --v1-signing-enabled true --v2-signing-enabled true --out $apk $aligned
