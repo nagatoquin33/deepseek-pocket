@@ -30,3 +30,6 @@ ci-dist/
 
 # 文档站构建产物
 /site/
+
+# 发布包校验下载
+ci-verify/
