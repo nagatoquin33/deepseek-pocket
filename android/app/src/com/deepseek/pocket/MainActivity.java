@@ -65,6 +65,7 @@ public class MainActivity extends Activity {
     private ValueCallback<Uri[]> fileCallback;
     private PermissionRequest pendingPermission;
     private boolean darkTheme = false;
+    private long lastBackAt = 0;
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -470,9 +471,16 @@ public class MainActivity extends Activity {
                 "(function(){try{return !!(window.__dsBack&&window.__dsBack());}catch(e){return false;}})()",
                 value -> {
                     boolean handled = "true".equals(value);
-                    if (!handled) {
-                        if (web.canGoBack()) web.goBack();
-                        else moveTaskToBack(true);
+                    if (handled) return;
+                    if (web.canGoBack()) { web.goBack(); return; }
+                    // 根页面：第一次只提示，2 秒内再返回才退出，避免全面屏手势误退
+                    long now = System.currentTimeMillis();
+                    if (now - lastBackAt < 2000) {
+                        lastBackAt = 0;
+                        moveTaskToBack(true);
+                    } else {
+                        lastBackAt = now;
+                        toast("再滑一次返回退出");
                     }
                 });
     }

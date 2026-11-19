@@ -93,6 +93,12 @@ export const store = {
       this.settings.migratedSafety = true;
       lsSet(KEY_SETTINGS, this.settings);
     }
+    // 自动朗读默认关闭：旧安装一次性重置，之后尊重用户开关
+    if (!rawSettings.migratedAutoRead) {
+      this.settings.autoRead = false;
+      this.settings.migratedAutoRead = true;
+      lsSet(KEY_SETTINGS, this.settings);
+    }
     this.ui = { ...this.ui, ...lsGet(KEY_UI, {}) };
     try {
       const db = await openDB();

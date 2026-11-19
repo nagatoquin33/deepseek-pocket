@@ -279,7 +279,7 @@ export function openSettings(ctx) {
           <textarea class="input" id="sp-input" rows="7" placeholder="例如：你是严谨的中文技术助手，先给结论再给要点，避免客套话。" style="height:auto;min-height:158px;padding:12px 14px;line-height:1.65;resize:vertical">${esc(cur)}</textarea>
           <div class="row-desc" style="display:flex;justify-content:space-between;padding:8px 2px 12px">
             <span>作为 system 消息随每次请求发送，对所有对话生效</span>
-            <span id="sp-count">${cur.length}/2000</span>
+            <span id="sp-count">${cur.length} 字</span>
           </div>
         </div>
         <button class="set-row" id="sp-save"><span class="row-main"><span class="row-name" style="color:var(--brand);font-weight:600">保存</span></span></button>
@@ -412,8 +412,8 @@ export function openSettings(ctx) {
     if (spInput) {
       const count = body.querySelector("#sp-count");
       spInput.addEventListener("input", () => {
-        if (spInput.value.length > 2000) spInput.value = spInput.value.slice(0, 2000);
-        if (count) count.textContent = `${spInput.value.length}/2000`;
+
+        if (count) count.textContent = `${spInput.value.length} 字`;
       });
       body.querySelectorAll("[data-preset]").forEach((el) => el.addEventListener("click", () => {
         const p = PRESETS[Number(el.dataset.preset)];

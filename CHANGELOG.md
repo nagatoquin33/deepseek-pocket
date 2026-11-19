@@ -2,6 +2,17 @@
 
 本项目遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)；提交信息参考 Conventional Commits。
 
+## [1.0.2] - 2026-11-19
+
+### 修复
+
+- 全面屏返回手势在根页面直接退回桌面：改为「再滑一次返回退出」，浮层优先关闭
+- 自动朗读在旧安装上可能保持开启：默认关闭并做一次性迁移
+
+### 变更
+
+- 系统提示词取消 2000 字上限，字数限制交给上下文 token 预算
+
 ## [1.0.1] - 2026-11-19
 
 ### 修复
@@ -39,5 +50,6 @@
 - 开放平台余额、费用估算、系统提示词、深色模式、PWA 安装
 - 132 项自动化测试；GitHub Actions 自动测试、打包 APK、tag 发布 Release
 
+[1.0.2]: https://github.com/nagatoquin33/deepseek-pocket/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/nagatoquin33/deepseek-pocket/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/nagatoquin33/deepseek-pocket/releases/tag/v1.0.0
