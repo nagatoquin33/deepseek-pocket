@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 使用问题 / 报错排查
+    url: https://github.com/nagatoquin33/deepseek-pocket/blob/main/docs/FAQ.md
+    about: 401/402/麦克风/自签证书/端口占用/语音无声等问题，先看 FAQ
+  - name: 安全问题私下上报
+    url: https://github.com/nagatoquin33/deepseek-pocket/security/advisories/new
+    about: 密钥泄露、XSS、越权等，请不要公开提 issue

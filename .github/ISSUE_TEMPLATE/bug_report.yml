@@ -1,0 +1,64 @@
+name: Bug report
+description: 报告一个可复现的问题（请先看 docs/FAQ.md）
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈。请先确认 [docs/FAQ.md](https://github.com/nagatoquin33/deepseek-pocket/blob/main/docs/FAQ.md) 没有覆盖该问题。
+        **不要粘贴完整 API Key**，可以写前 5 位 + 后 4 位。
+  - type: dropdown
+    id: platform
+    attributes:
+      label: 运行形态
+      options:
+        - Android APK
+        - 浏览器 / PWA（本机代理）
+        - 离线演示（Mock）
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: 版本
+      description: Release 页或设置 → 关于里的版本号
+      placeholder: "1.0.1"
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: 设备与系统
+      placeholder: "Xiaomi 14 / Android 15 / WebView 130；或 Chrome 130 / Windows 11"
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. 打开…
+        2. 点击…
+        3. 看到…
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望 vs 实际
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志 / 截图 / 错误码
+      description: 服务端终端输出、浏览器 Console、HTTP 状态码；截图可直接拖进来
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 确认
+      options:
+        - label: 我已确认这不是 FAQ 中已覆盖的问题
+          required: true
+        - label: 我使用的是最新 Release
+          required: true
