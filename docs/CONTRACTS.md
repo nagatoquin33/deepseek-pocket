@@ -25,11 +25,13 @@ Node ≥ 20（本机 v22）。除 `qrcode`（仅服务端可选）外不得引�
   - 服务端联网工具：`tools:[{"type":"deepseek_web_search","name":"deepseek_web_search"},{"type":"deepseek_read_url","name":"deepseek_read_url"}]`。
   - 引用：`delta.annotations[]` / `message.annotations[]`，元素形如
     `{"type":"web_search_result_location","url":..,"title":..,"cited_text":..}`。
+
   - 服务端工具调用（Chat Completions 扩展）：`delta.server_tool_calls[]` / `message.server_tool_calls[]`，
     每项最少含 `{id, name, input:{action:"search"|"open_page"|"find_in_page"|"read_link", queries?, url?, pattern?}, kind:"search"|"deep_search"|"read_link"|"image_search"|"deep_image_search"}`；
     结果项形如 `{tool_use_id, content:[{title,url,snippet,site_name,site_icon,page_age}], kind}` 或
     `{tool_use_id, content:{url,title,published_at}, kind}`；失败含 `error_code`。
     解析必须宽容：两种形状都要接受，缺字段不报错。
+
   - 标题：请求 `{"title":{"enabled":true}}`，最后 chunk `delta.title`，也可能 `message.title`。
   - 安全审核：`{"safety_check":{"level":"high"}}`；拒绝时 `finish_reason:"refusal"`、`message.refusal`。
   - 用量：最后 chunk `usage`：`prompt_tokens, completion_tokens, total_tokens, prompt_cache_hit_tokens, prompt_cache_miss_tokens, prompt_tokens_details.cached_tokens`。
@@ -38,6 +40,7 @@ Node ≥ 20（本机 v22）。除 `qrcode`（仅服务端可选）外不得引�
   - 用户元信息（每条 user 之前）：`{"role":"latest_reminder","content":"2026-11-19,Wednesday,上海,App,中文"}`。
 - 检索：`POST /v1/tools/search` `{query,count,ori_question?,localization?,need_content?}` →
   `{results:[{rerank_score,title,url,snippet,summary,content,site_name,site_icon,date,authority}]}`。
+
 - 抓取：`POST /v1/tools/fetch` `{url}` → `{title,content}`（Markdown）。
 - TTS：`POST /v1/tools/tts` `{text,voice_id:"stella"|"tide",format:"wav"|"pcm",filter_markdown}` → `audio/wav` 二进制。
 - ASR：`POST /v1/tools/asr` multipart `file`（16-bit PCM WAV 或 Ogg Opus，≤8MiB，≤120s）→ `{text,duration_ms,request_id}`。
@@ -74,6 +77,7 @@ HTTP 路由（同源，无 CORS 需求；带 `Origin` 时校验与 Host 同源�
 HTTPS：`--https` 时读 `.tls/cert.pem`+`.tls/key.pem`；缺失则调用 `tools/gen-cert.mjs`（openssl，SAN 覆盖 localhost+所有局域网 IPv4）；失败则打印说明并回退 HTTP。启动时终端打印手机访问 URL 与二维码（qrcode 未安装则跳过，不影响运行）。
 
 Mock 模式（`--mock`）：`mock/deepseek-mock.mjs` 完整模拟上述上游端点，供离线演示与 e2e：
+
 - 流式：reasoning_content 若干块 → server_tool_calls(search) → 结果 → 正文含 `[1][2]` 引用 → annotations → 标题 → usage → `[DONE]`，块间 15–30ms。
 - TTS 返回 1 秒 24kHz 单声道 16-bit 正弦 WAV；ASR 固定返回「今天上海天气怎么样？」；balance 返回 ¥110；search 返回 5 条示例（含 site_name/site_icon 为 data:image/svg 小图标）；files 返回 `file-api-mock`。
 
@@ -96,6 +100,7 @@ export function renderMarkdown(md: string, opts?: {
 ```
 
 要求：
+
 1. **XSS 安全**：模型输出中的 HTML 一律转义，不允许原样透传；URL 仅允许 `https:`、`http:`、`mailto:`、`tel:`、`#` 及 `data:image/*`；链接加 `target="_blank" rel="noopener noreferrer nofollow"`；不得输出 `on*` 属性。
 2. 代码块：`<div class="code-block" data-lang="js"><div class="code-hd"><span class="code-lang">JavaScript</span><button class="code-copy" type="button" aria-label="复制代码">复制</button></div><pre><code>…</code></pre></div>`；未闭合围栏（流式截断）也要正常渲染。
 3. 支持 GFM：标题、粗斜体、删除线、行内代码、围栏代码、有序/无序/嵌套列表、任务列表、引用、分隔线、表格（含对齐）、链接、图片（懒加载）、自动链接、硬换行、脚注可省略。

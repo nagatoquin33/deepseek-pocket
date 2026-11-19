@@ -2,7 +2,7 @@
  * app.js —— 应用主控：登录、会话、流式对话、语音、侧栏、设置、PWA
  * ========================================================================= */
 
-import { createClient, normalizeBalance, isNativeShell } from './api.js';
+import { createClient, normalizeBalance, isNativeShell, isDirectHost } from './api.js';
 import { createMockClient } from './mock-client.js';
 import { addChat, addTTS, addASR, summary, resetUsage } from './usage.js';
 import { store } from './store.js';
@@ -32,6 +32,7 @@ const S = {
   envKey: false,
   demoMode: false,
   native: isNativeShell(),
+  directWeb: !isNativeShell() && isDirectHost(),
   settings: { ...store.settings },
   serverInfo: null,
   client: null,
@@ -81,10 +82,10 @@ function setLoginStatus(text, type = '') {
 function showLogin(message = '') {
   $('#login').hidden = false;
   $('#main').hidden = true;
-  const hasEnv = !S.native && !!S.serverInfo?.hasEnvKey;
+  const hasEnv = !S.native && !S.directWeb && !!S.serverInfo?.hasEnvKey;
   $('#login-env').hidden = !hasEnv;
   $('#login-env-hint').hidden = !hasEnv || !!S.key;
-  $('#login-demo').hidden = !S.serverInfo?.mock;
+  $('#login-demo').hidden = !S.serverInfo?.mock || S.directWeb;
   if (hasEnv && !S.key) {
     $('#login-manual').style.display = '';
     setLoginStatus('检测到本机已配置密钥，可直接一键登录，或输入你自己的 API Key。');
@@ -429,8 +430,8 @@ function handleApiError(e, asst) {
   } else if (status === 400) {
     msg = `请求被拒绝：${e.message}`;
   } else if (status === 0) {
-    msg = S.native
-      ? '网络不可用：请检查手机网络，或稍后重试。'
+    msg = (S.native || S.directWeb)
+      ? '网络不可用：请检查网络，或稍后重试。'
       : '网络不可用：手机与运行 server.mjs 的电脑需在同一 Wi-Fi，且电脑未被防火墙拦截。';
   }
   asst.error = msg;
@@ -817,6 +818,7 @@ function settingsCtx() {
     isEnvKey: () => S.envKey,
     isDemo: () => S.demoMode,
     isNative: () => S.native,
+    isDirectWeb: () => S.directWeb,
     getBalance: () => S.balance,
     refreshBalance,
     changeKey: async () => { await logout(false); },
@@ -1249,9 +1251,13 @@ async function boot() {
   installViewportFix();
   document.documentElement.dataset.font = store.ui.fontSize || 'm';
 
-  if (isNativeShell()) {
+  if (isNativeShell() || S.directWeb) {
     const note = $('#login-note');
-    if (note) note.innerHTML = '密钥只保存在本机；APK 直连 <code>api.deepseek.com</code>，按开放平台价格从你的额度扣费。';
+    if (note) {
+      note.innerHTML = isNativeShell()
+        ? '密钥只保存在本机；APK 直连 <code>api.deepseek.com</code>，按开放平台价格从你的额度扣费。'
+        : '密钥只保存在本机；网页直连 <code>api.deepseek.com</code>（CORS），按开放平台价格从你的额度扣费。';
+    }
   }
   $('#boot-error').hidden = true;
   window.addEventListener('error', (e) => {
@@ -1293,7 +1299,7 @@ async function boot() {
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 6000);
-    S.serverInfo = S.native
+    S.serverInfo = (S.native || S.directWeb)
       ? await createClient({ key: '', direct: true }).serverInfo()
       : await createClient({ key: '' }).serverInfo({ signal: controller.signal });
     clearTimeout(timer);

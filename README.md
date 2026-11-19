@@ -4,6 +4,7 @@
 [![release](https://img.shields.io/github/v/release/nagatoquin33/deepseek-pocket?label=APK)](https://github.com/nagatoquin33/deepseek-pocket/releases/latest)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![platform](https://img.shields.io/badge/Android-8.0%2B%20%7C%20Web-lightgrey.svg)](#10-兼容性)
+[![docs](https://img.shields.io/badge/docs-GitHub%20Pages-blue.svg)](https://nagatoquin33.github.io/deepseek-pocket/)
 
 手机上的 DeepSeek，**用你自己的开放平台（platform.deepseek.com）额度**。
 深度思考、智能搜索与引用、语音输入与朗读、多会话、系统提示词、用量统计，一个不落。
@@ -23,7 +24,7 @@
 | **自己打包 APK** | `bash android/build.sh`（Linux/macOS/CI）或 `powershell -File android/build.ps1`（Windows） |
 | **浏览器 / PWA 用** | `node server.mjs`，手机同 Wi-Fi 打开地址，Safari/Chrome「添加到主屏幕」 |
 
-> 文档导航：[截图](#1-它长什么样) · [功能](#2-功能) · [快速开始](#3-快速开始) · [登录](#4-一键登录与额度) · [计费](#5-计费说明) · [API 映射](#6-用到了哪些-api) · [架构](#7-架构) · [隐私](#8-数据与隐私) · [开发与 CI](#9-开发测试与-ci) · [兼容性](#10-兼容性) · [限制](#11-已知限制) · [FAQ](docs/FAQ.md) · [更新日志](CHANGELOG.md) · [API 细节](docs/API-MAPPING.md) · [参与贡献](CONTRIBUTING.md) · [安全](SECURITY.md)
+> 文档导航：[截图](#1-它长什么样) · [功能](#2-功能) · [快速开始](#3-快速开始) · [登录](#4-一键登录与额度) · [计费](#5-计费说明) · [API 映射](#6-用到了哪些-api) · [架构](docs/ARCHITECTURE.md) · [开发](docs/DEVELOPMENT.md) · [发布](docs/RELEASING.md) · [架构](#7-架构) · [隐私](#8-数据与隐私) · [开发与 CI](#9-开发测试与-ci) · [兼容性](#10-兼容性) · [限制](#11-已知限制) · [FAQ](docs/FAQ.md) · [更新日志](CHANGELOG.md) · [API 细节](docs/API-MAPPING.md) · [参与贡献](CONTRIBUTING.md) · [安全](SECURITY.md)
 
 ---
 
@@ -56,6 +57,7 @@
 ## 2. 功能
 
 ### 对话
+
 - 流式输出，随时停止；深度思考折叠面板 + 计时；思考强度 `low / high / max`
 - **智能搜索**：服务端 `deepseek_web_search` / `deepseek_read_url`，检索步骤可视化（查询词、结果卡片、打开网页），正文 `[n]` 角标 + 参考来源
 - 图片理解（`image_url`）与文档问答（Files API 解析后 `file_id` 引用）
@@ -66,10 +68,12 @@
 - 内容安全审核可选（默认关闭，`safety_check: high`）
 
 ### 语音
+
 - **语音输入**：WebAudio 采集 → 16kHz 单声道 WAV → `/v1/tools/asr`；支持**按住说话**（松手自动识别并发送）
 - **朗读**：`/v1/tools/tts`，`stella` / `tide` 双音色、语速 0.6–1.6x、长文分句；播放/停止就在回答的喇叭按钮上切换，**无浮动播放条**
 
 ### 会话与个性化
+
 - 新建 / 切换 / 重命名 / 置顶 / 删除 / 长按菜单，自动标题，时间分组，全文搜索
 - 导出 / 导入 JSON（兼容本应用与 DeepSeek Chat 导出结构）
 - **系统提示词**：≤2000 字自定义 + 6 套模板，作为 `system` 消息随请求发送
@@ -77,6 +81,7 @@
 - 账号：开放平台余额展示与刷新；模型切换；主题（跟随系统/浅色/深色）、字号、触感
 
 ### 体验
+
 - **全面屏适配**：状态栏 / 导航手势条 / 刘海 / 输入法 insets 注入 CSS 安全区
 - **手势**：侧栏左滑关闭、底部抽屉下拉关闭、搜索/设置页左缘右滑返回、图片下滑关闭、返回键分级处理
 - PWA：可安装、离线外壳、快捷方式；桌面端居中阅读列
@@ -102,7 +107,7 @@ node server.mjs --https     # 3) 语音输入需要 HTTPS（自动生成自签�
 
 启动后终端会打印本地地址、手机地址与二维码：
 
-```
+```text
 本地访问   http://127.0.0.1:8787
 手机访问   http://192.168.31.41:8787
 密钥       未预置（请在手机端粘贴）
@@ -171,6 +176,7 @@ APK 内 WebView 的页面源是 `https://appassets.local`（安全上下文）�
 应用内的费用均为**估算**（按非高峰价）；实际以开放平台账单为准。用量统计页会分别累计模型、TTS、ASR 三部分。
 
 ### 为什么用 Chat Completions 而不是 Responses
+
 两者能力与计费一致（都能用服务端 web 工具）。选 Chat Completions 的原因：流式增量最简单、多轮与「编辑重发/重新生成」的客户端状态最可控、OpenAI SDK 生态最广；Responses 的收益主要是服务端会话存储，对「本地会话管理」反而多余。详见 [docs/API-MAPPING.md](docs/API-MAPPING.md)。
 
 ---
@@ -194,7 +200,7 @@ APK 内 WebView 的页面源是 `https://appassets.local`（安全上下文）�
 
 ## 7. 架构
 
-```
+```text
 Android APK ── WebView(https://appassets.local, assets 拦截) ──┐
                                                               ├── HTTPS + CORS ──► api.deepseek.com
 浏览器/PWA ── 同源 fetch ──► server.mjs（静态 + SSE 代理 + HTTPS + Mock）──┘

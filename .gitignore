@@ -27,3 +27,6 @@ Thumbs.db
 
 # 本地下载的 CI 产物
 ci-dist/
+
+# 文档站构建产物
+site/

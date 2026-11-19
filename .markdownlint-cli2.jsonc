@@ -1,0 +1,16 @@
+{
+  "config": {
+    "MD013": false,
+    "MD033": false,
+    "MD034": false,
+    "MD036": false,
+    "MD041": false,
+    "MD029": false,
+    "MD024": { "siblings_only": true },
+    "MD049": false,
+    "MD050": false,
+    "MD060": false
+  },
+  "globs": ["**/*.md"],
+  "ignores": ["**/node_modules/**", "site/**", "android/app/assets/**", "android/build/**", "docs/CONTRACTS.md"]
+}

@@ -29,6 +29,18 @@ export function isNativeShell() {
   return typeof location !== 'undefined' && location.hostname === NATIVE_HOST;
 }
 
+/** 是否直连上游：APK 壳、GitHub Pages 等静态托管、或显式 ?direct=1 */
+export function isDirectHost() {
+  if (typeof location === 'undefined') return false;
+  const h = location.hostname;
+  if (h === NATIVE_HOST) return true;
+  if (h === 'localhost' || h === '127.0.0.1') {
+    return new URLSearchParams(location.search).has('direct');
+  }
+  if (h.endsWith('.github.io')) return true;
+  return new URLSearchParams(location.search).has('direct');
+}
+
 /** 端点映射：代理路径 与 上游真实路径 一一对应 */
 const ROUTES = {
   chat: { proxy: '/chat', direct: '/chat/completions' },
@@ -92,7 +104,7 @@ async function readSSE(res, onEvent) {
   }
 }
 
-export function createClient({ key = '', base = '/api', direct = isNativeShell() } = {}) {
+export function createClient({ key = '', base = '/api', direct = (typeof location !== 'undefined' && isDirectHost()) } = {}) {
   const authHeaders = () => (key
     ? (direct ? { Authorization: `Bearer ${key.trim()}` } : { 'x-ds-key': key.trim() })
     : {});

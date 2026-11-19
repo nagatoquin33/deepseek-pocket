@@ -181,7 +181,7 @@ export function openSettings(ctx) {
           <span class="row-main"><span class="row-name">退出登录</span></span>
         </button>
       </div>
-      <div class="settings-version">DeepSeek 随身版 · ${ctx.isNative() ? 'Android APK' : 'Web'} · ${ctx.getBackend()}</div>
+      <div class="settings-version">DeepSeek 随身版 · ${ctx.isNative() ? 'Android APK' : ctx.isDirectWeb?.() ? 'Web 直连' : 'Web 代理'} · ${ctx.getBackend()}</div>
     `;
   }
 
@@ -328,7 +328,7 @@ export function openSettings(ctx) {
     body.innerHTML = `
       <div class="group-card" style="margin-top:18px">
         ${rowLink({ ico: 'info', name: '版本', value: `v${ctx.getVersion()}` })}
-        ${rowLink({ ico: 'info', name: '运行形态', value: ctx.isNative() ? 'Android APK' : '浏览器' })}
+        ${rowLink({ ico: 'info', name: '运行形态', value: ctx.isNative() ? 'Android APK' : ctx.isDirectWeb?.() ? '网页直连' : '浏览器 + 代理' })}
         ${rowLink({ ico: 'info', name: '接口地址', value: 'api.deepseek.com' })}
         ${rowLink({ ico: 'info', name: '模型名称', value: 'Deepseek Chat' })}
       </div>

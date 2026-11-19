@@ -43,6 +43,7 @@ Base URL：`https://api.deepseek.com`（浏览器不直连，统一经本机 `se
 ```
 
 规则与实现要点：
+
 - `thinking` 优先于 `reasoning_effort`；关闭思考时发 `{"type":"disabled"}`。
 - 声明 web 工具后，`temperature / top_p / stop / seed / n` 等会被服务端忽略（正常现象）。
 - `title` 只在会话首轮开启；标题随最后一个 chunk 的 `delta.title` 返回，不额外计费。
@@ -77,7 +78,7 @@ Base URL：`https://api.deepseek.com`（浏览器不直连，统一经本机 `se
 | --- | --- | --- |
 | 检索 | `POST /v1/tools/search` `{query,count,ori_question,need_content,localization}` | `results[]`：`title/url/snippet/summary/content/site_name/site_icon/date/authority/rerank_score`；计费 $0.75/千次成功请求，QPS 100 |
 | 抓取 | `POST /v1/tools/fetch` `{url}` | `{title, content}`（Markdown）；计费 $0.75/千次；QPS 25 |
-| 朗读 | `POST /v1/tools/tts` `{text,voice_id:"stella"|"tide",format:"wav"|"pcm",filter_markdown}` | `audio/wav` 流；≤10k 计费字符/次；支持 WebSocket 流式合成（本项目用整段 WAV，长文客户端分句） |
+| 朗读 | `POST /v1/tools/tts` `{text,voice_id:"stella" 或 "tide",format:"wav" 或 "pcm",filter_markdown}` | `audio/wav` 流；≤10k 计费字符/次；支持 WebSocket 流式合成（本项目用整段 WAV，长文客户端分句） |
 | 语音识别 | `POST /v1/tools/asr` multipart `file` | `{text,duration_ms,request_id}`；16-bit PCM WAV 或 Ogg Opus，≤8MiB、≤120s |
 | 文档解析 | `POST /files` multipart，`purpose` 在前：`text_recognition` / `rich_layout_recognition` / `user_data` | `{id:"file-api-…", purpose, …}`；对话中用 `{type:"file",file_id}` 引用 |
 | OCR | `POST /v1/tools/ocr` | 页面识别（前端已封装 `client.ocr`，当前 UI 未入口） |

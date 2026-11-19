@@ -34,7 +34,7 @@ npm run build:android:win   # Windows 构建 APK；Linux/macOS 用 npm run build
 
 参考 Conventional Commits：
 
-```
+```text
 feat: 新增系统提示词模板
 fix: 修复朗读停止时误报失败
 docs: 重写 README 与 FAQ
