@@ -29,4 +29,4 @@ Thumbs.db
 ci-dist/
 
 # 文档站构建产物
-site/
+/site/
