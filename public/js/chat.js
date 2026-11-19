@@ -384,6 +384,38 @@ function renderThinkBlock(b, idx, openSet) {
   </div>`;
 }
 
+function fmtDur(ms) {
+  if (!ms || ms < 0) return "";
+  if (ms < 1000) return `${ms}ms`;
+  const s = ms / 1000;
+  if (s < 60) return `${s.toFixed(1)}s`;
+  return `${Math.floor(s / 60)}m${Math.round(s % 60)}s`;
+}
+
+/** 消息底部：↑输入 ↓输出 · 缓存命中 · 首字延迟 · 速度 · 估算费用 */
+function buildUsageFoot(msg) {
+  const u = msg.usage || {};
+  const input = u.prompt_tokens || 0;
+  const output = u.completion_tokens || 0;
+  const cache = u.prompt_cache_hit_tokens ?? u.prompt_tokens_details?.cached_tokens ?? 0;
+  const reasoning = u.completion_tokens_details?.reasoning_tokens || 0;
+  const cachePct = input ? Math.round((cache / input) * 100) : 0;
+  const secs = msg.durationMs ? msg.durationMs / 1000 : 0;
+  const speed = secs > 0 ? Math.round(output / secs) : 0;
+  const cost = estimateCost(u, msg.model);
+  const parts = [
+    `<span class="usage" title="输入 ${input} tokens">↑${formatTokens(input)}</span>`,
+    `<span class="usage" title="输出 ${output} tokens">↓${formatTokens(output)}</span>`,
+  ];
+  if (input) parts.push(`<span class="usage" title="缓存命中 ${cache} / ${input}（prompt_cache_hit_tokens）">缓存${cachePct}%</span>`);
+  if (reasoning) parts.push(`<span class="usage" title="思考 token">思考${formatTokens(reasoning)}</span>`);
+  if (msg.firstTokenMs) parts.push(`<span class="usage" title="首字延迟">首字${fmtDur(msg.firstTokenMs)}</span>`);
+  if (speed) parts.push(`<span class="usage" title="输出速度">${speed} tok/s</span>`);
+  if (msg.durationMs) parts.push(`<span class="usage">${fmtDur(msg.durationMs)}</span>`);
+  if (cost) parts.push(`<span class="usage" title="按非高峰价估算">≈${formatCost(cost)}</span>`);
+  return parts.join(`<span class="dot">·</span>`);
+}
+
 function actionTitle(s) {
   if (s.error) return '搜索失败';
   if (s.action === 'read_link') return '阅读链接';
@@ -574,7 +606,7 @@ export class ChatView {
     const citations = collectCitations(msg);
     const usage = msg.usage;
     const cost = usage ? formatCost(estimateCost(usage, msg.model)) : '';
-    const tokens = usage ? `${formatTokens(usage.completion_tokens)} tok` : '';
+    const foot = usage ? buildUsageFoot(msg) : '';
     return `<div class="msg assistant" data-id="${msg.id}" data-streaming="${streaming ? '1' : '0'}">
 
       <div class="asst-body">${body}</div>
@@ -588,7 +620,7 @@ export class ChatView {
       </div>
       <div class="msg-foot">
         <span>${formatTime(msg.createdAt)}</span>
-        ${usage && msg.status !== 'streaming' ? `<span class="dot">·</span><span class="usage">${tokens}</span>${cost ? `<span class="dot">·</span><span class="usage">≈${cost}</span>` : ''}` : ''}
+        ${usage && msg.status !== 'streaming' ? `<span class="dot">·</span>${foot}` : ''}
       </div>
     </div>`;
   }

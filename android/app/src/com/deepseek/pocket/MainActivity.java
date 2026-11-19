@@ -10,6 +10,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
+import android.graphics.Insets;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -18,6 +19,7 @@ import android.provider.MediaStore;
 import android.util.Log;
 import android.view.View;
 import android.view.Window;
+import android.view.WindowInsets;
 import android.view.WindowManager;
 import android.webkit.ConsoleMessage;
 import android.webkit.JavascriptInterface;
@@ -98,6 +100,7 @@ public class MainActivity extends Activity {
 
         web.setWebViewClient(new Client());
         web.setWebChromeClient(new Chrome());
+        setupEdgeToEdge();
         web.addJavascriptInterface(new Bridge(), "DSAndroid");
         if (Build.VERSION.SDK_INT >= 19) WebView.setWebContentsDebuggingEnabled(true);
 
@@ -109,6 +112,42 @@ public class MainActivity extends Activity {
             boolean demo = it != null && it.getBooleanExtra("demo", false);
             web.loadUrl(demo ? START_URL + "?demo=1" : START_URL);
         }
+    }
+
+    /* --------------------------- 全面屏与手势 --------------------------- */
+
+    /**
+     * 全面屏手势适配：让内容延伸到系统栏下方，再用 padding 精确避让
+     * 状态栏 / 导航栏 / 刘海 / 输入法，这样底部手势区和输入框不会互相遮挡。
+     */
+    private void setupEdgeToEdge() {
+        if (Build.VERSION.SDK_INT < 30) return;               // Android 11+ 才支持 WindowInsets.Type
+        Window win = getWindow();
+        win.setDecorFitsSystemWindows(false);
+        win.setStatusBarColor(Color.TRANSPARENT);
+        win.setNavigationBarColor(Color.TRANSPARENT);
+        web.setFitsSystemWindows(false);
+        web.setOnApplyWindowInsetsListener((v, insets) -> {
+            Insets bars = insets.getInsets(
+                    WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
+            Insets ime = insets.getInsets(WindowInsets.Type.ime());
+            float d = getResources().getDisplayMetrics().density;
+            float top = bars.top / d;
+            float bottom = Math.max(bars.bottom, ime.bottom) / d;
+            float left = bars.left / d;
+            float right = bars.right / d;
+            // 页面用 CSS 变量自行避让：全面屏手势区、状态栏、刘海、输入法都不会遮住内容
+            String js = String.format(
+                    "(function(){var r=document.documentElement.style;" +
+                            "r.setProperty('--inset-top','%.1fpx');" +
+                            "r.setProperty('--inset-bottom','%.1fpx');" +
+                            "r.setProperty('--inset-left','%.1fpx');" +
+                            "r.setProperty('--inset-right','%.1fpx');})()",
+                    top, bottom, left, right);
+            web.evaluateJavascript(js, null);
+            return insets;
+        });
+        web.requestApplyInsets();
     }
 
     /* ------------------------------ 系统栏 ------------------------------ */

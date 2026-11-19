@@ -101,6 +101,7 @@ export function openSettings(ctx) {
     else if (cur.id === 'voice') renderVoice();
     else if (cur.id === 'about') renderAbout();
     else if (cur.id === 'system') renderSystem();
+    else if (cur.id === 'usage') renderUsage();
     bindCommon();
   };
 
@@ -142,6 +143,7 @@ export function openSettings(ctx) {
       <div class="group-card">
         ${rowLink({ ico: 'user', name: '账号管理', value: bal ? `${bal.currency === 'USD' ? '$' : '¥'}${bal.total}` : '', go: 'account' })}
         ${rowLink({ ico: 'data', name: '数据管理', go: 'data' })}
+        ${rowLink({ ico: 'data', name: '用量统计', desc: 'token / 缓存 / 语音 / 费用', value: '累计', go: 'usage' })}
       </div>
 
       <div class="group-label">应用</div>
@@ -294,6 +296,33 @@ export function openSettings(ctx) {
       <div class="settings-version">提示词只保存在本机，不经过任何服务器</div>`;
   }
 
+  function renderUsage() {
+    const u = ctx.getUsage();
+    const money = (v) => (v < 0.01 ? `<$0.01` : `${v.toFixed(3)}`);
+    const tok = (v) => (v < 1000 ? String(v) : v < 1e6 ? `${(v / 1000).toFixed(1)}K` : `${(v / 1e6).toFixed(2)}M`);
+    body.innerHTML = `
+      <div class="group-label">对话</div>
+      <div class="group-card">
+        <div class="set-row"><span class="row-main"><span class="row-name">输入 tokens</span></span><span class="row-value">${tok(u.promptTokens)}</span></div>
+        <div class="set-row"><span class="row-main"><span class="row-name">输出 tokens</span></span><span class="row-value">${tok(u.completionTokens)}</span></div>
+        <div class="set-row"><span class="row-main"><span class="row-name">缓存命中</span><span class="row-desc">命中 ${tok(u.cacheHitTokens)} / 输入 ${tok(u.promptTokens)}</span></span><span class="row-value">${(u.cacheRate * 100).toFixed(1)}%</span></div>
+        <div class="set-row"><span class="row-main"><span class="row-name">请求数</span></span><span class="row-value">${u.requests}</span></div>
+        <div class="set-row"><span class="row-main"><span class="row-name">模型费用</span><span class="row-desc">按非高峰价估算</span></span><span class="row-value">≈${money(u.modelCost)}</span></div>
+      </div>
+      <div class="group-label">语音</div>
+      <div class="group-card">
+        <div class="set-row"><span class="row-main"><span class="row-name">朗读合成</span><span class="row-desc">按计费字符（中文 2 / 其他 1），$0.45 每万字</span></span><span class="row-value">${u.ttsChars} 字 · ≈${money(u.ttsCost)}</span></div>
+        <div class="set-row"><span class="row-main"><span class="row-name">语音识别</span><span class="row-desc">$0.116 每小时</span></span><span class="row-value">${u.asrSeconds.toFixed(1)} 秒 · ≈${money(u.asrCost)}</span></div>
+      </div>
+      <div class="group-card" style="margin-top:14px">
+        <div class="set-row"><span class="row-main"><span class="row-name" style="font-weight:600">累计估算费用</span></span><span class="row-value" style="font-weight:600;color:var(--text)">≈${money(u.totalCost)}</span></div>
+      </div>
+      <div class="group-card" style="margin-top:14px">
+        ${rowLink({ ico: "info", name: "清空统计", desc: "只清本地统计，不影响对话", act: "clear-usage" })}
+      </div>
+      <div class="settings-version">统计只保存在本机；费用为估算，实际以开放平台账单为准</div>`;
+  }
+
   function renderAbout() {
     const info = ctx.getServerInfo?.() || {};
     body.innerHTML = `
@@ -315,7 +344,7 @@ export function openSettings(ctx) {
   const bindCommon = () => {
     body.querySelectorAll('[data-go]').forEach((el) => el.addEventListener('click', () => {
       const id = el.dataset.go;
-      const titles = { account: '账号管理', data: '数据管理', theme: '外观', font: '字体大小', lang: '语言', region: '地区', effort: '思考强度', voice: '语音', about: '关于', system: '系统提示词' };
+      const titles = { account: '账号管理', data: '数据管理', theme: '外观', font: '字体大小', lang: '语言', region: '地区', effort: '思考强度', voice: '语音', about: '关于', system: '系统提示词', usage: '用量统计' };
       push(id, titles[id] || '设置');
     }));
 

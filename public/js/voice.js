@@ -287,6 +287,8 @@ export class TTSPlayer {
         else this._finish();
       });
       audio.addEventListener('error', () => {
+        // 主动停止/切换时浏览器会抛空 src 的 error，忽略
+        if (this.state === 'idle' || this.stopping) return;
         this._revoke();
         this.onError?.(new Error('音频播放失败'));
         this._finish();
@@ -314,8 +316,18 @@ export class TTSPlayer {
   }
 
   _revoke() {
+    // 先摘掉事件监听，再释放 src：直接置空会触发 error 事件，导致"播放成功却报失败"
+    if (this.audio) {
+      try {
+        this.audio.onended = null;
+        this.audio.onerror = null;
+        this.audio.pause();
+        this.audio.removeAttribute('src');
+        this.audio.load();
+      } catch { /* ignore */ }
+      this.audio = null;
+    }
     if (this.url) { URL.revokeObjectURL(this.url); this.url = null; }
-    if (this.audio) { this.audio.src = ''; this.audio = null; }
   }
 
   _finish() {
@@ -326,6 +338,7 @@ export class TTSPlayer {
   }
 
   stop() {
+    this.stopping = true;
     try { this.abort?.abort(); } catch { /* ignore */ }
     this.abort = null;
     this._revoke();
@@ -333,5 +346,6 @@ export class TTSPlayer {
     this.index = 0;
     if (this.state !== 'idle') this._emit('idle');
     this.state = 'idle';
+    this.stopping = false;
   }
 }

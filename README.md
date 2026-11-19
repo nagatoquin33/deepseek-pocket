@@ -21,9 +21,9 @@
 | --- | --- | --- |
 | ![设置](docs/screenshots/08-settings.png) | ![系统提示词](docs/screenshots/09-system-prompt.png) | ![模型](docs/screenshots/10-model.png) |
 
-| 独立搜索 | 深色模式 | 登录 |
+| 独立搜索 | 深色模式 | 用量统计 |
 | --- | --- | --- |
-| ![搜索](docs/screenshots/11-search.png) | ![深色](docs/screenshots/12-dark.png) | ![登录](docs/screenshots/01-login.png) |
+| ![搜索](docs/screenshots/11-search.png) | ![深色](docs/screenshots/12-dark.png) | ![用量](docs/screenshots/14-usage.png) |
 
 | Android APK 实机 |
 | --- |

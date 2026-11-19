@@ -41,8 +41,8 @@
   --shadow-1: 0 1px 2px rgba(17, 24, 39, .04), 0 4px 16px rgba(17, 24, 39, .05);
   --shadow-2: 0 12px 36px rgba(17, 24, 39, .12);
   --topbar-h: 54px;
-  --safe-top: env(safe-area-inset-top, 0px);
-  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-top: var(--inset-top, env(safe-area-inset-top, 0px));
+  --safe-bottom: var(--inset-bottom, env(safe-area-inset-bottom, 0px));
   --app-h: 100dvh;
   --fs-base: 16px;
 

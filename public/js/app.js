@@ -4,6 +4,7 @@
 
 import { createClient, normalizeBalance, isNativeShell } from './api.js';
 import { createMockClient } from './mock-client.js';
+import { addChat, addTTS, addASR, summary, resetUsage } from './usage.js';
 import { store } from './store.js';
 import { ChatView, composeRequestBody, applyChunk } from './chat.js';
 import { openSettings, openModelSheet, maskKey } from './settings.js';
@@ -375,7 +376,11 @@ async function runAssistant() {
       signal: ctrl.signal,
       onEvent: (chunk) => {
         if (chunk.done) return;
-        applyChunk(asst, chunk);
+        const touched = applyChunk(asst, chunk);
+        asst.durationMs = Date.now() - startedAt;
+        if (!asst.firstTokenMs && (touched === 'content' || touched === 'reasoning')) {
+          asst.firstTokenMs = Date.now() - startedAt;
+        }
         if (asst.title && !session.titleGenerated) {
           session.title = String(asst.title).slice(0, 120);
           session.titleGenerated = true;
@@ -445,6 +450,7 @@ function afterAnswer(asst, startedAt, { partial = false } = {}) {
   updateChrome();
   sidebar.render(S.sessions, session.id);
   persistCurrent();
+  try { addChat(asst.usage, asst.model); } catch { /* 统计失败不影响使用 */ }
   if (!partial && asst.content && S.settings.autoRead) speakMessage(asst);
 }
 
@@ -594,6 +600,7 @@ async function finishVoice() {
     $('#rec-hint').textContent = '调用 ASR 识别中…';
     const res = await S.client.asr(out.blob);
     const text = (res?.text || '').trim();
+    try { addASR((res?.duration_ms || out.durationMs) / 1000); } catch { /* ignore */ }
     hideRecorder();
     if (!text) { toast('没有识别到内容'); return; }
     const input = $('#input');
@@ -662,6 +669,7 @@ async function speakMessage(msg) {
   }
   S.tts.stop();
   S.speakingId = msg.id;
+  try { addTTS(text); } catch { /* ignore */ }
   try {
     await S.tts.speak(text, {
       voiceId: S.settings.ttsVoice,
@@ -817,6 +825,8 @@ function settingsCtx() {
     setNickname: (v) => { store.saveSettings({ nickname: v }); S.settings = store.settings; updateChrome(); },
     getVersion: () => S.serverInfo?.version || VERSION,
     getServerInfo: () => S.serverInfo,
+    getUsage: () => summary(),
+    resetUsage,
     openModelSheet: () => openModelSheet(settingsCtx()),
     sessionHasImages: () => !!S.session?.messages.some((m) => m.attachments?.some((a) => a.kind === 'image')),
     syncSpeakerIcon,
