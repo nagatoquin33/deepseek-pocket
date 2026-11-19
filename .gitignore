@@ -1,0 +1,26 @@
+# 依赖
+node_modules/
+tools/qa/node_modules/
+
+# 本地自签证书与密钥（绝不提交）
+.tls/
+android/debug.keystore
+*.keystore
+*.jks
+
+# 构建产物
+android/build/
+android/dist/
+android/app/assets/
+dist/
+
+# 运行时与测试产物
+*.log
+coverage/
+*.tmp
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

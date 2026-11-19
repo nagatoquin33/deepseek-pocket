@@ -1,0 +1,11 @@
+# 统一换行，避免 Windows 检出把 shell 脚本变成 CRLF 导致 CI 无法执行
+* text=auto eol=lf
+*.sh text eol=lf
+*.ps1 text eol=crlf
+*.png binary
+*.jpg binary
+*.ico binary
+*.apk binary
+*.jar binary
+*.keystore binary
+*.woff2 binary
