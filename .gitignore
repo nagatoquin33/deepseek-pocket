@@ -24,3 +24,6 @@ coverage/
 .idea/
 .DS_Store
 Thumbs.db
+
+# 本地下载的 CI 产物
+ci-dist/
