@@ -30,6 +30,33 @@ function assertNoDangerTags(html) {
   assert.doesNotMatch(html, /<[^>]*\son\w+\s*=/i, '不应出现 on* 事件属性');
 }
 
+/** 空元素集合：不需要闭合标签。 */
+const VOID_TAGS = new Set([
+  'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',
+  'link', 'meta', 'param', 'source', 'track', 'wbr',
+]);
+
+/** 断言 HTML 标签闭合平衡（用于验证数学/环境的 span 结构合法）。 */
+function assertBalancedHtml(html) {
+  const re = /<(\/?)([A-Za-z][A-Za-z0-9-]*)((?:\s+[^>]*)?)>/g;
+  const stack = [];
+  let m;
+  while ((m = re.exec(html))) {
+    const closing = m[1] === '/';
+    const tag = m[2].toLowerCase();
+    if (VOID_TAGS.has(tag)) {
+      assert.equal(closing, false, `空元素 <${tag}> 不应出现闭合标签`);
+      continue;
+    }
+    if (closing) {
+      assert.equal(stack.pop(), tag, `标签闭合顺序错误：</${tag}>`);
+    } else {
+      stack.push(tag);
+    }
+  }
+  assert.deepEqual(stack, [], '存在未闭合的 HTML 标签');
+}
+
 /* ============================================================
  * escapeHtml
  * ============================================================ */
@@ -641,9 +668,9 @@ describe('数学公式', () => {
     assert.match(html, /<span class="math-sqrt">/);
     assert.match(html, /<span class="math-greek">α<\/span>/);
     assert.match(html, /<span class="math-op">≥<\/span>/);
-    assert.match(html, /<span class="math-op">∑<\/span>/);
-    assert.match(html, /<span class="math-sub">/);
-    assert.match(html, /<span class="math-sup">/);
+    assert.match(html, /<span class="math-op math-op-large">∑<\/span>/);
+    assert.match(html, /<span class="math-limits-sub">/);
+    assert.match(html, /<span class="math-limits-sup">/);
   });
 
   it('\\text / \\mathrm 输出 math-text', () => {
@@ -685,7 +712,7 @@ describe('数学公式', () => {
   it('块级数学 \\[...\\]', () => {
     const html = renderMarkdown('\\[ \\sum_{k=1}^{n} k \\]');
     assert.match(html, /class="math math-display"/);
-    assert.match(html, /math-op">∑/);
+    assert.match(html, /math-op math-op-large">∑/);
   });
 
   it('行内数学 \\(...\\)', () => {
@@ -724,6 +751,236 @@ describe('数学公式', () => {
     const html = renderMath('\\text{<img onerror=x>}');
     assert.doesNotMatch(html, /<img/);
     assert.match(html, /&lt;img/);
+  });
+});
+
+/* ============================================================
+ * 数学公式：扩展（环境 / 大运算符 / 根指数 / 非法输入）
+ * ============================================================ */
+
+describe('数学公式扩展：根指数与大运算符上下限', () => {
+  it('\\sqrt[3]{x} 渲染根指数', () => {
+    const html = renderMath('\\sqrt[3]{x}');
+    assert.match(html, /<span class="math-root"><span class="math-num">3<\/span><\/span>/);
+    assert.match(html, /<span class="math-radicand">/);
+  });
+
+  it('\\sqrt[n+1]{x} 根指数按数学内容解析', () => {
+    const html = renderMath('\\sqrt[n+1]{x}');
+    assert.match(html, /<span class="math-root">/);
+    assert.match(html, /<span class="math-var">n<\/span>/);
+    assert.match(html, /<span class="math-op">\+<\/span>/);
+  });
+
+  it('上下标组合 x_i^2 在同一 math-script 中', () => {
+    const html = renderMath('x_i^2');
+    assert.match(html, /<span class="math-script">/);
+    assert.match(html, /<span class="math-sup">/);
+    assert.match(html, /<span class="math-sub">/);
+    // 上标和下标都应位于同一个 math-script 容器内
+    assert.match(html, /<span class="math-script"><span class="math-base">[\s\S]*<span class="math-sup">[\s\S]*<span class="math-sub">[\s\S]*<\/span><\/span>/);
+  });
+
+  it('嵌套上下标 x^{a_b}', () => {
+    const html = renderMath('x^{a_b}');
+    assert.match(html, /<span class="math-sup"><span class="math-script">/);
+    assert.match(html, /<span class="math-sub">/);
+  });
+
+  it('\\sum 带上下限使用 math-limits', () => {
+    const html = renderMath('\\sum_{i=1}^{n} i', true);
+    assert.match(html, /math-op math-op-large">∑/);
+    assert.match(html, /<span class="math-limits">/);
+    assert.match(html, /<span class="math-limits-base">/);
+    assert.match(html, /<span class="math-limits-sub">/);
+    assert.match(html, /<span class="math-limits-sup">/);
+  });
+
+  it('\\int / \\prod 带上下限', () => {
+    assert.match(renderMath('\\int_0^1 x\\,dx', true), /<span class="math-limits">[\s\S]*math-limits-sub/);
+    assert.match(renderMath('\\prod_{k=1}^{n} k', true), /math-op-large">∏/);
+  });
+
+  it('\\lim 带下标使用 math-limits', () => {
+    const html = renderMath('\\lim_{x\\to 0} f(x)', true);
+    assert.match(html, /math-op-large">lim/);
+    assert.match(html, /math-limits-sub/);
+  });
+
+  it('\\left( \\right) 包裹 frac', () => {
+    const html = renderMath('\\left( \\frac{a}{b} \\right)');
+    assert.match(html, /<span class="math-op">\(<\/span><span class="math-frac">/);
+    assert.match(html, /math-frac-den[\s\S]*<span class="math-op">\)<\/span>/);
+  });
+
+  it('\\left\\{ \\right. 组合 aligned', () => {
+    const html = renderMath('\\left\\{ \\begin{aligned} x &= 1 \\\\ y &= 2 \\end{aligned} \\right.', true);
+    assert.match(html, /<span class="math-op">\{<\/span>/);
+    assert.match(html, /<span class="math-aligned">/);
+  });
+});
+
+describe('数学公式扩展：矩阵 / cases / aligned', () => {
+  it('pmatrix：定界符 + 行 + 单元格', () => {
+    const html = renderMath('\\begin{pmatrix} 1 & 2 \\\\ 3 & 4 \\end{pmatrix}', true);
+    assert.match(html, /<span class="math-matrix math-matrix-pmatrix">/);
+    assert.match(html, /math-matrix-delim math-matrix-open">\(/);
+    assert.match(html, /math-matrix-delim math-matrix-close">\)/);
+    assert.equal((html.match(/math-matrix-row/g) || []).length, 2);
+    assert.equal((html.match(/math-matrix-cell/g) || []).length, 4);
+  });
+
+  it('bmatrix / matrix 定界符差异', () => {
+    assert.match(renderMath('\\begin{bmatrix} a \\end{bmatrix}', true), /math-matrix-open">\[/);
+    const plain = renderMath('\\begin{matrix} a & b \\end{matrix}', true);
+    assert.doesNotMatch(plain, /math-matrix-delim/);
+    assert.equal((plain.match(/math-matrix-cell/g) || []).length, 2);
+  });
+
+  it('cases：左大括号 + 每行表达式/条件', () => {
+    const html = renderMath('\\begin{cases} x & x>0 \\\\ -x & x\\le 0 \\end{cases}', true);
+    assert.match(html, /<span class="math-cases">/);
+    assert.match(html, /math-cases-delim">\{/);
+    assert.equal((html.match(/math-case-row/g) || []).length, 2);
+    assert.equal((html.match(/math-case-cell math-case-expr/g) || []).length, 2);
+    assert.equal((html.match(/math-case-cell math-case-cond/g) || []).length, 2);
+  });
+
+  it('aligned：多行多列', () => {
+    const html = renderMath('\\begin{aligned} a &= b + c \\\\ d &= e - f \\end{aligned}', true);
+    assert.match(html, /<span class="math-aligned">/);
+    assert.equal((html.match(/math-aligned-row/g) || []).length, 2);
+    assert.equal((html.match(/math-aligned-cell/g) || []).length, 4);
+  });
+
+  it('array 带列格式参数（{cc}）被忽略但内容正常', () => {
+    const html = renderMath('\\begin{array}{cc} 1 & 2 \\\\ 3 & 4 \\end{array}', true);
+    assert.match(html, /math-matrix-array/);
+    assert.equal((html.match(/math-matrix-cell/g) || []).length, 4);
+    assert.doesNotMatch(html, />cc</);
+  });
+
+  it('矩阵单元格内嵌 frac / sqrt / text / 希腊字母', () => {
+    const html = renderMath('\\begin{pmatrix} \\frac{1}{2} & \\sqrt{2} \\\\ \\text{让} & \\alpha \\end{pmatrix}', true);
+    assert.match(html, /math-matrix-cell"><span class="math-frac">/);
+    assert.match(html, /math-matrix-cell"><span class="math-sqrt">/);
+    assert.match(html, /<span class="math-text">让<\/span>/);
+    assert.match(html, /<span class="math-greek">α<\/span>/);
+  });
+
+  it('矩阵可嵌入 frac，也可同名嵌套', () => {
+    const outer = renderMath('\\frac{\\begin{pmatrix}1&2\\\\3&4\\end{pmatrix}}{2}', true);
+    assert.match(outer, /math-frac-num"><span class="math-matrix/);
+    const nested = renderMath('\\begin{pmatrix}\\begin{pmatrix}1&2\\\\3&4\\end{pmatrix}&5\\end{pmatrix}', true);
+    assert.equal((nested.match(/math-matrix math-matrix-pmatrix/g) || []).length, 2);
+  });
+
+  it('环境中的 HTML 被转义（XSS）', () => {
+    const html = renderMath('\\begin{pmatrix}\\text{<script>alert(1)</script>} & \\text{" onmouseover="x}\\end{pmatrix}', true);
+    assertNoDangerTags(html);
+    assert.match(html, /&lt;script/);
+    assertBalancedHtml(html);
+  });
+
+  it('根指数中的 HTML 被转义（XSS）', () => {
+    const html = renderMath('\\sqrt[<img src=x onerror=1>]{y}');
+    assertNoDangerTags(html);
+    assert.doesNotMatch(html, /<img/);
+  });
+
+  it('行内数学中的矩阵用 span 承载（不产生 div）', () => {
+    const html = renderMarkdown('矩阵 $\\begin{pmatrix}1&2\\\\3&4\\end{pmatrix}$ 结束');
+    assert.match(html, /<span class="math math-inline"><span class="math-matrix/);
+    assert.doesNotMatch(html, /<div/);
+  });
+
+  it('Markdown 块级公式集成 cases / aligned', () => {
+    const cases = renderMarkdown('$$\\begin{cases} x & x>0 \\\\ -x & x\\le0 \\end{cases}$$');
+    assert.match(cases, /^<div class="math math-display"><span class="math-cases">/);
+    const aligned = renderMarkdown('$$\n\\begin{aligned} a &= 1 \\\\ b &= 2\n\\end{aligned}\n$$');
+    assert.match(aligned, /<div class="math math-display"><span class="math-aligned">/);
+  });
+
+  it('数学输出不使用 table/style/script（CSP 兼容 + span 合法嵌套）', () => {
+    const outputs = [
+      renderMath('\\begin{pmatrix}1&2\\\\3&4\\end{pmatrix}', true),
+      renderMath('\\begin{cases}x&x>0\\\\-x&x\\le0\\end{cases}', true),
+      renderMath('\\begin{aligned}a&=1\\\\b&=2\\end{aligned}', true),
+      renderMath('\\sum_{i=1}^{n} i', true),
+    ];
+    for (const html of outputs) {
+      assert.doesNotMatch(html, /<(?:table|thead|tbody|tr|td|th)[\s>]/i);
+      assert.doesNotMatch(html, /style=/i);
+      assert.doesNotMatch(html, /<script[\s>]/i);
+      assertBalancedHtml(html);
+    }
+  });
+});
+
+describe('数学公式扩展：非法输入不崩', () => {
+  const malformed = [
+    '\\begin{pmatrix} 1 & 2', // 未闭合环境
+    '\\begin{cases}', // 空且未闭合
+    '\\begin{aligned} a &= b \\\\', // 未闭合 + 末尾换行
+    '\\begin{}', // 空环境名
+    '\\end{pmatrix}', // 孤立 end
+    '\\sqrt[', // 未闭合根指数
+    '\\sqrt', // 无参数
+    '\\frac', // 无参数
+    '\\frac{1}', // 只有一个参数
+    '\\left(', // 未闭合 left
+    '\\right)', // 孤立 right
+    '\\text{', // 未闭合 text
+    '}{}{', // 多余花括号
+    '\\begin{pmatrix}\\begin{pmatrix}1\\end{pmatrix}', // 同名嵌套未闭合
+    '\\begin{aligned} & \\\\ & \\end{aligned}', // 空单元格
+  ];
+
+  it('renderMath 对所有畸形输入返回平衡的 HTML 且不抛错', () => {
+    for (const tex of malformed) {
+      const html = renderMath(tex, true);
+      assert.equal(typeof html, 'string');
+      assert.match(html, /^<div class="math math-display">/);
+      assertNoDangerTags(html);
+      assertBalancedHtml(html);
+    }
+  });
+
+  it('renderMarkdown 中的畸形公式不影响整体渲染', () => {
+    for (const tex of malformed) {
+      const html = renderMarkdown(`前文 $${tex}$ 后文`);
+      assert.equal(typeof html, 'string');
+      assert.match(html, /前文/);
+      assert.match(html, /后文/);
+      assertBalancedHtml(html);
+    }
+  });
+
+  it('未闭合环境降级为 math-fallback，内容不丢失', () => {
+    const html = renderMath('\\begin{pmatrix} 1 & 2', true);
+    assert.match(html, /<code class="math-fallback">\\begin\{pmatrix\}<\/code>/);
+    assert.match(html, /<span class="math-num">1<\/span>/);
+  });
+
+  it('空环境不崩且结构完整', () => {
+    const html = renderMath('\\begin{pmatrix}\\end{pmatrix}', true);
+    assert.match(html, /math-matrix-pmatrix/);
+    assert.match(html, /math-matrix-body"><\/span>/);
+    assertBalancedHtml(html);
+  });
+
+  it('超深嵌套不栈溢出（环境 / 分式 / 花括号 / 强调）', () => {
+    const cases = [
+      renderMath('\\begin{pmatrix}'.repeat(200) + '1' + '\\end{pmatrix}'.repeat(200), true),
+      renderMath('\\frac{'.repeat(150) + '1' + '}{2}'.repeat(150), true),
+      renderMath('{'.repeat(2000) + 'x' + '}'.repeat(2000), true),
+      renderMarkdown('*'.repeat(400) + 'x' + '*'.repeat(400)),
+      renderMarkdown('**'.repeat(300) + 'x' + '**'.repeat(300)),
+    ];
+    for (const html of cases) {
+      assert.equal(typeof html, 'string');
+      assertBalancedHtml(html);
+    }
   });
 });
 
@@ -788,6 +1045,12 @@ function buildDoc() {
     parts.push('| 名称 | 数值 | 说明 |');
     parts.push('| --- | ---: | :---: |');
     parts.push('| 项目 | 123 | 说明文字 |');
+    parts.push('');
+    parts.push('$$\\begin{pmatrix} 1 & 2 \\\\ 3 & 4 \\end{pmatrix}$$');
+    parts.push('');
+    parts.push('$$\\begin{cases} x & x>0 \\\\ -x & x\\le0 \\end{cases}$$');
+    parts.push('');
+    parts.push('$$\\begin{aligned} a &= 1 \\\\ b &= 2 \\end{aligned}$$');
     parts.push('');
     parts.push('```js');
     parts.push('const value = 42; // 注释');

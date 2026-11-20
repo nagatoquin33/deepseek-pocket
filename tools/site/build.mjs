@@ -14,6 +14,7 @@ const OUT = path.join(ROOT, 'site');
 const REPO = 'https://github.com/nagatoquin33/deepseek-pocket';
 const PAGES = [
   { slug: 'overview', title: '概览', file: 'README.md' },
+  { slug: 'overview-en', title: 'English', file: 'README.en.md' },
   { slug: 'faq', title: '常见问题', file: 'docs/FAQ.md' },
   { slug: 'architecture', title: '架构', file: 'docs/ARCHITECTURE.md' },
   { slug: 'development', title: '开发指南', file: 'docs/DEVELOPMENT.md' },

@@ -496,6 +496,26 @@ code, pre { font-family: var(--mono); }
 .act:hover { background: var(--surface-2); color: var(--text); }
 .act.on { color: var(--brand); background: var(--brand-ghost); }
 .act.danger:hover { color: var(--danger); }
+
+/* 回答版本切换 ‹ n/m › */
+.variants {
+  display: inline-flex; align-items: center; gap: 1px;
+  margin-right: 4px; padding: 1px 2px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+.var-btn { height: 26px; padding: 0 4px; border-radius: 8px; color: var(--text-2); }
+.var-btn:hover { background: var(--surface-3); color: var(--text); }
+.var-count {
+  min-width: 34px; padding: 0 2px;
+  text-align: center; font-size: 12px; color: var(--text-2);
+  font-variant-numeric: tabular-nums; letter-spacing: .02em;
+  user-select: none; -webkit-user-select: none;
+}
+[data-theme="dark"] .variants { background: #23262C; border-color: #2A2D33; }
+[data-theme="dark"] .var-btn:hover { background: #2F333A; color: #fff; }
+[data-theme="dark"] .var-count { color: #A7AEBA; }
 .msg-foot { display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: 11px; color: var(--text-3); flex-wrap: wrap; }
 .msg-foot .dot { opacity: .5; }
 .msg-foot .usage { font-variant-numeric: tabular-nums; }
@@ -762,6 +782,26 @@ code, pre { font-family: var(--mono); }
 .math-sub { vertical-align: sub; }
 .math-script { display: inline-flex; flex-direction: column; vertical-align: middle; line-height: 1.1; }
 .math-var { font-style: italic; }
+.math-root { display: inline-flex; align-items: flex-start; margin: 0 2px; }
+.math-radicand { border-top: 1px solid currentColor; padding: 0 3px; }
+.math-op-large { font-size: 1.15em; }
+.math-limits { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; line-height: 1.05; margin: 0 2px; }
+.math-limits-sub, .math-limits-sup { font-size: .7em; }
+.math-matrix { display: inline-flex; align-items: stretch; vertical-align: middle; margin: 0 3px; }
+.math-matrix-delim { display: flex; align-items: center; font-size: 1.5em; line-height: 1; }
+.math-matrix-body { display: flex; flex-direction: column; padding: 0 2px; }
+.math-matrix-row { display: flex; }
+.math-matrix-cell { padding: 0 5px; text-align: center; }
+.math-cases { display: inline-flex; align-items: center; vertical-align: middle; margin: 0 2px; }
+.math-cases-delim { font-size: 1.7em; line-height: 1; margin-right: 2px; }
+.math-cases-body { display: flex; flex-direction: column; text-align: left; }
+.math-case-row { display: flex; gap: 12px; }
+.math-case-cell { white-space: nowrap; }
+.math-case-cond { color: var(--muted); }
+.math-aligned { display: inline-flex; flex-direction: column; vertical-align: middle; }
+.math-aligned-row { display: flex; gap: 8px; }
+.math-aligned-cell { white-space: nowrap; }
+.math-fallback { color: var(--muted); }
 .math-op { padding: 0 2px; }
 .math-greek { font-style: italic; }
 .math-text { font-style: normal; font-family: var(--font); }

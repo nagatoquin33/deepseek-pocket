@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const MD_FILES = [
   'README.md',
+  'README.en.md',
   'CHANGELOG.md',
   'CONTRIBUTING.md',
   'SECURITY.md',

@@ -1,6 +1,6 @@
 {
   "name": "deepseek-pocket",
-  "version": "1.0.3",
+  "version": "1.1.0",
   "private": false,
   "description": "DeepSeek 随身版：手机端 DeepSeek 客户端（Android APK + PWA），使用开放平台 API 与自有额度，支持深度思考、智能搜索、语音与多会话管理。",
   "license": "MIT",
@@ -27,6 +27,7 @@
     "mock": "node server.mjs --mock",
     "https": "node server.mjs --https",
     "cert": "node tools/gen-cert.mjs",
+    "doctor": "node tools/doctor.mjs",
     "test": "node --test",
     "build:android": "bash android/build.sh",
     "build:android:win": "powershell -ExecutionPolicy Bypass -File android/build.ps1",

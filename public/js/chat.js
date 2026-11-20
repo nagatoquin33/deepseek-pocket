@@ -3,6 +3,7 @@
  * ========================================================================= */
 
 import { renderMarkdown } from './render.js';
+import { ensureVariants, currentVariant } from './branch.js';
 import {
   esc, icon, uid, copyText, toast, formatTime, formatTokens, formatCost,
   estimateCost, throttleRaf, isNearBottom, scrollToBottom, haptic,
@@ -568,8 +569,13 @@ export class ChatView {
   }
 
   setSession(session) {
+    if (session && Array.isArray(session.messages)) {
+      // 旧会话数据在这里迁移成单版本，视图与持久化读到的是同一份结构
+      session.messages = session.messages.map((m) => ensureVariants(m));
+    }
     this.session = session;
     this.openThink.clear();
+    this.streamingMsg = null;
     this.renderAll();
   }
 
@@ -607,10 +613,17 @@ export class ChatView {
     const usage = msg.usage;
     const cost = usage ? formatCost(estimateCost(usage, msg.model)) : '';
     const foot = usage ? buildUsageFoot(msg) : '';
+    const variant = currentVariant(msg);
+    const variantBar = variant.total > 1 ? `<div class="variants" role="group" aria-label="回答版本">
+        <button class="act var-btn" data-act="variant-prev" title="上一个版本" aria-label="上一个版本">${icon('chevronLeft', { size: 15 })}</button>
+        <span class="var-count">${variant.index + 1}/${variant.total}</span>
+        <button class="act var-btn" data-act="variant-next" title="下一个版本" aria-label="下一个版本">${icon('chevronRight', { size: 15 })}</button>
+      </div>` : '';
     return `<div class="msg assistant" data-id="${msg.id}" data-streaming="${streaming ? '1' : '0'}">
 
       <div class="asst-body">${body}</div>
       <div class="msg-actions" data-id="${msg.id}" ${streaming ? 'style="display:none"' : ''}>
+        ${variantBar}
         <button class="act" data-act="copy" title="复制">${icon('copy', { size: 15 })}<span>复制</span></button>
         <button class="act" data-act="regen" title="重新生成">${icon('refresh', { size: 15 })}</button>
         <button class="act" data-act="speak" title="朗读">${icon('speaker', { size: 15 })}</button>
@@ -676,13 +689,24 @@ export class ChatView {
     this.onEvent.onDone?.(msg);
   }
 
-  /** 重绘单条消息（用于展开思考面板等交互） */
+  /** 丢弃一条消息（重新生成落空时的临时消息）：从消息数组与 DOM 中移除 */
+  discardMessage(msg) {
+    if (!msg) return;
+    if (this.streamingMsg === msg) this.streamingMsg = null;
+    const node = this.el.querySelector(`[data-id="${msg.id}"]`);
+    if (node) node.remove();
+    if (this.session) this.session.messages = this.session.messages.filter((m) => m.id !== msg.id);
+  }
+
+  /** 重绘单条消息（用于展开思考面板、切换回答版本等交互） */
   refreshMessage(msg) {
     const node = this.el.querySelector(`[data-id="${msg.id}"]`);
     if (!node) return;
     const wrap = document.createElement('div');
     wrap.innerHTML = this.renderMessageHTML(msg);
-    node.replaceWith(wrap.firstElementChild);
+    const fresh = wrap.firstElementChild;
+    node.replaceWith(fresh);
+    enhanceMermaid(fresh);
   }
 
   scrollToBottom(smooth = false) { scrollToBottom(this.el, smooth); }
@@ -731,6 +755,10 @@ export class ChatView {
       const msg = this.session?.messages.find((m) => m.id === msgId);
       if (!msg) return;
       const kind = act.dataset.act;
+      if (kind === 'variant-prev' || kind === 'variant-next') {
+        this.onEvent.onSwitchVariant?.(msg, kind === 'variant-next' ? 'next' : 'prev');
+        return;
+      }
       if (kind === 'copy') {
         const text = msg.role === 'user' ? msg.content : msg.content;
         const ok = await copyText(text);

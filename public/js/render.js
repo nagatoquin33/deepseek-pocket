@@ -603,6 +603,8 @@ export function highlight(code, lang) {
  *   行内 <span class="math math-inline">…</span>
  *   块级 <div  class="math math-display">…</div>
  * 内部使用 span.math-*（frac/sup/sub/sqrt/text/op/greek/var/num/script/...）；
+ * 环境（pmatrix/bmatrix/cases/aligned/array…）输出纯 span 结构，
+ * 不使用 table（保证 span 内部的 HTML 合法性，并兼容 CSP）。
  * 未知命令降级为 <code class="math-fallback">\cmd</code>。
  * ============================================================ */
 
@@ -638,15 +640,51 @@ const MATH_OPS = {
   angle: '∠', perp: '⊥', parallel: '∥', therefore: '∴', because: '∵',
   langle: '⟨', rangle: '⟩', lceil: '⌈', rceil: '⌉', lfloor: '⌊', rfloor: '⌋',
   lvert: '|', rvert: '|', vert: '|', mid: '|', nmid: '∤',
+  // 扩展常用运算符（位运算 / 逻辑 / 集合）
+  oplus: '⊕', ominus: '⊖', otimes: '⊗', odot: '⊙', oslash: '⊘',
+  bigcup: '⋃', bigcap: '⋂', sqcup: '⊔', sqcap: '⊓',
+  models: '⊨', vdash: '⊢', dashv: '⊣', nparallel: '∦',
+  triangle: '△', square: '□', blacksquare: '■',
+  hbar: 'ℏ', ell: 'ℓ', Re: 'ℜ', Im: 'ℑ', aleph: 'ℵ', colon: ':',
   // 间距命令
   quad: '\u2003', qquad: '\u2003\u2003', ',': '\u2009', ';': '\u2005',
   ':': '\u2004', '!': '',
 };
 
+/** 大型运算符：上下限以上下堆叠（math-limits）形式渲染，而不是普通角标。 */
+const MATH_LARGE_OPS = new Set([
+  'sum', 'prod', 'coprod', 'int', 'iint', 'iiint', 'oint',
+  'bigcup', 'bigcap', 'lim', 'max', 'min', 'sup', 'inf', 'det', 'gcd',
+]);
+
+/** 矩阵类环境：环境名 → [左定界符, 右定界符]（空串表示无定界符）。 */
+const MATH_MATRIX_ENVS = new Map([
+  ['matrix', ['', '']],
+  ['smallmatrix', ['', '']],
+  ['pmatrix', ['(', ')']],
+  ['bmatrix', ['[', ']']],
+  ['Bmatrix', ['{', '}']],
+  ['vmatrix', ['|', '|']],
+  ['Vmatrix', ['‖', '‖']],
+  ['array', ['', '']],
+]);
+
+/** 多行对齐类环境（按 \\ 分行、& 分列）。 */
+const MATH_ALIGN_ENVS = new Set([
+  'aligned', 'align', 'align*', 'alignat', 'alignat*', 'gather', 'gather*',
+  'gathered', 'split', 'eqnarray', 'eqnarray*', 'flalign', 'flalign*',
+]);
+
+/** 解析嵌套深度上限：防止恶意/异常输入（超深嵌套）导致栈溢出。 */
+const MAX_MATH_DEPTH = 64;
+/** 环境嵌套深度上限（嵌套环境会递归调用 mathBody）。 */
+const MAX_MATH_ENV_DEPTH = 32;
+
 class MathParser {
   constructor(src) {
     this.s = src;
     this.i = 0;
+    this.depth = 0; // 当前递归深度（分组/参数解析）
   }
 
   skipSpace() {
@@ -659,6 +697,9 @@ class MathParser {
 
   /** 解析一段序列；inGroup 为 true 时遇到 } 结束。 */
   parseSeq(inGroup) {
+    // 深度保护：超深嵌套不再递归，剩余内容作为纯文本降级（不抛栈溢出）
+    if (this.depth >= MAX_MATH_DEPTH) return this.consumeRemainingAsText(inGroup);
+    this.depth++;
     const nodes = [];
     const s = this.s;
     while (this.i < s.length) {
@@ -667,7 +708,10 @@ class MathParser {
       // 分组结束
       if (c === '}') {
         this.i++;
-        if (inGroup) return nodes.join('');
+        if (inGroup) {
+          this.depth--;
+          return nodes.join('');
+        }
         nodes.push(escapeHtml('}'));
         continue;
       }
@@ -691,6 +735,16 @@ class MathParser {
           if (kind === '^') sup = arg;
           else sub = arg;
         }
+        // 大型运算符（∑ ∫ ∏ lim…）的上下限堆叠在符号上下方
+        if (/class="math-op[^"]*math-op-large"/.test(base)) {
+          nodes.push(
+            `<span class="math-limits"><span class="math-limits-base">${base}</span>` +
+              (sub ? `<span class="math-limits-sub">${sub}</span>` : '') +
+              (sup ? `<span class="math-limits-sup">${sup}</span>` : '') +
+              '</span>'
+          );
+          continue;
+        }
         nodes.push(
           `<span class="math-script"><span class="math-base">${base}</span>` +
             (sup ? `<span class="math-sup">${sup}</span>` : '') +
@@ -708,7 +762,42 @@ class MathParser {
 
       nodes.push(this.parseToken());
     }
+    this.depth--;
     return nodes.join('');
+  }
+
+  /**
+   * 深度超限时的降级：把当前分组（或剩余全部）作为纯文本消费，
+   * 返回 math-fallback 内容。保证 this.i 推进、不递归、不抛错。
+   */
+  consumeRemainingAsText(inGroup) {
+    const s = this.s;
+    let depth = inGroup ? 1 : 0;
+    let out = '';
+    while (this.i < s.length) {
+      const c = s[this.i];
+      if (c === '\\' && this.i + 1 < s.length) {
+        out += c + s[this.i + 1];
+        this.i += 2;
+        continue;
+      }
+      if (c === '{') {
+        depth++;
+        out += c;
+        this.i++;
+        continue;
+      }
+      if (c === '}') {
+        depth--;
+        this.i++;
+        if (inGroup && depth <= 0) break;
+        out += c;
+        continue;
+      }
+      out += c;
+      this.i++;
+    }
+    return `<code class="math-fallback">${escapeHtml(out)}</code>`;
   }
 
   /**
@@ -809,8 +898,9 @@ class MathParser {
           }
         }
         const arg = this.parseArg();
-        const indexHtml = index
-          ? `<span class="math-root">${escapeHtml(index)}</span>`
+        // 根指数本身也是数学内容（支持 [n+1]、[\alpha] 等），统一走解析器
+        const indexHtml = index.trim()
+          ? `<span class="math-root">${mathBody(index)}</span>`
           : '';
         return `<span class="math-sqrt">${indexHtml}<span class="math-radicand">${arg}</span></span>`;
       }
@@ -848,7 +938,7 @@ class MathParser {
       case 'nolimits':
         return '';
       case 'begin':
-        return `<code class="math-fallback">\\begin{${escapeHtml(this.readRaw())}}</code>`;
+        return this.parseEnvironment();
       case 'end':
         return `<code class="math-fallback">\\end{${escapeHtml(this.readRaw())}}</code>`;
       default: {
@@ -861,12 +951,52 @@ class MathParser {
           if (name === 'quad' || name === 'qquad') {
             return `<span class="math-space">${value}</span>`;
           }
-          return `<span class="math-op">${value}</span>`;
+          const large = MATH_LARGE_OPS.has(name) ? ' math-op-large' : '';
+          return `<span class="math-op${large}">${value}</span>`;
         }
         // 未知命令：安全降级，保留命令字面量
         return `<code class="math-fallback">\\${escapeHtml(name)}</code>`;
       }
     }
+  }
+
+  /**
+   * 解析 \begin{env}...\end{env} 环境。
+   * 找不到匹配的 \end 时安全降级（不抛错，后续内容继续按数学解析）。
+   */
+  parseEnvironment() {
+    const name = this.readRaw().trim();
+    if (!name) return '<code class="math-fallback">\\begin</code>';
+    const endIdx = this.findEnvironmentEnd(name, this.i);
+    if (endIdx < 0) {
+      // 未闭合环境：只降级 \begin 本身，剩余内容继续正常解析
+      return `<code class="math-fallback">\\begin{${escapeHtml(name)}}</code>`;
+    }
+    const content = this.s.slice(this.i, endIdx);
+    this.i = endIdx + `\\end{${name}}`.length;
+    return renderEnvironment(name, content);
+  }
+
+  /** 从 from 起寻找同名环境的 \end，支持同名嵌套；找不到返回 -1。 */
+  findEnvironmentEnd(name, from) {
+    const beginTag = `\\begin{${name}}`;
+    const endTag = `\\end{${name}}`;
+    let depth = 1;
+    let pos = from;
+    while (pos < this.s.length) {
+      const nextBegin = this.s.indexOf(beginTag, pos);
+      const nextEnd = this.s.indexOf(endTag, pos);
+      if (nextEnd < 0) return -1;
+      if (nextBegin >= 0 && nextBegin < nextEnd) {
+        depth++;
+        pos = nextBegin + beginTag.length;
+      } else {
+        depth--;
+        if (depth === 0) return nextEnd;
+        pos = nextEnd + endTag.length;
+      }
+    }
+    return -1;
   }
 
   /** \left / \right 后面的定界符。 */
@@ -952,6 +1082,236 @@ class MathParser {
  * @param {boolean} [display] 块级公式
  * @returns {string}
  */
+/* ---------- 3.1 环境（矩阵 / cases / aligned）解析与渲染 ----------
+ * 全部用 span 表达，不生成 table，保证：
+ *  - 可以安全嵌在行内 span 里（合法 HTML 嵌套）；
+ *  - 不依赖内联样式/脚本（CSP 兼容）；
+ *  - 单元格内容仍走 MathParser，转义规则与普通公式一致。
+ */
+
+/** 去掉环境可选参数：\begin{array}{cc} 的列格式、\begin{aligned}[t] 的位置参数。 */
+function stripEnvArgs(src) {
+  let s = String(src || '').replace(/^\s+/, '');
+  if (s.startsWith('[')) {
+    const close = s.indexOf(']');
+    if (close > 0) s = s.slice(close + 1);
+  }
+  s = s.replace(/^\s+/, '');
+  if (s.startsWith('{')) {
+    let depth = 0;
+    for (let i = 0; i < s.length; i++) {
+      if (s[i] === '\\') {
+        i++;
+        continue;
+      }
+      if (s[i] === '{') depth++;
+      else if (s[i] === '}') {
+        depth--;
+        if (depth === 0) {
+          s = s.slice(i + 1);
+          break;
+        }
+      }
+    }
+  }
+  return s.replace(/^\s+/, '');
+}
+
+/** 按顶层 \\ 切分环境行；跳过 \text{...} 花括号内与嵌套环境内的 \\。 */
+function splitMathRows(content) {
+  const s = String(content || '');
+  const rows = [];
+  let cur = '';
+  let brace = 0;
+  let env = 0;
+  let i = 0;
+  while (i < s.length) {
+    if (s.startsWith('\\begin{', i)) {
+      env++;
+      cur += '\\begin{';
+      i += 7;
+      continue;
+    }
+    if (s.startsWith('\\end{', i)) {
+      if (env > 0) env--;
+      cur += '\\end{';
+      i += 5;
+      continue;
+    }
+    const c = s[i];
+    if (c === '\\') {
+      const next = s[i + 1];
+      if (next === '\\' && brace === 0 && env === 0) {
+        rows.push(cur);
+        cur = '';
+        i += 2;
+        // 可选行距参数 \\[2pt]
+        while (i < s.length && /\s/.test(s[i])) i++;
+        if (s[i] === '[') {
+          const close = s.indexOf(']', i + 1);
+          if (close > 0) i = close + 1;
+        }
+        continue;
+      }
+      cur += c;
+      if (next !== undefined) {
+        cur += next;
+        i += 2;
+      } else {
+        i++;
+      }
+      continue;
+    }
+    if (c === '{') brace++;
+    else if (c === '}' && brace > 0) brace--;
+    cur += c;
+    i++;
+  }
+  rows.push(cur);
+  return rows;
+}
+
+/** 按顶层 & 切分一行中的单元格；\& 与花括号/嵌套环境内的 & 不切分。 */
+function splitMathCells(row) {
+  const s = String(row || '');
+  const cells = [];
+  let cur = '';
+  let brace = 0;
+  let env = 0;
+  let i = 0;
+  while (i < s.length) {
+    if (s.startsWith('\\begin{', i)) {
+      env++;
+      cur += '\\begin{';
+      i += 7;
+      continue;
+    }
+    if (s.startsWith('\\end{', i)) {
+      if (env > 0) env--;
+      cur += '\\end{';
+      i += 5;
+      continue;
+    }
+    const c = s[i];
+    if (c === '\\') {
+      cur += c;
+      if (i + 1 < s.length) {
+        cur += s[i + 1];
+        i += 2;
+      } else {
+        i++;
+      }
+      continue;
+    }
+    if (c === '{') brace++;
+    else if (c === '}' && brace > 0) brace--;
+    if (c === '&' && brace === 0 && env === 0) {
+      cells.push(cur);
+      cur = '';
+      i++;
+      continue;
+    }
+    cur += c;
+    i++;
+  }
+  cells.push(cur);
+  return cells;
+}
+
+/** 矩阵类环境：matrix / pmatrix / bmatrix / Bmatrix / vmatrix / Vmatrix / array。 */
+function renderMatrix(env, content) {
+  const delims = MATH_MATRIX_ENVS.get(env) || ['', ''];
+  const open = delims[0];
+  const close = delims[1];
+  const rowsHtml = splitMathRows(content)
+    .filter((row) => row.trim() !== '')
+    .map((row) => {
+      const cells = splitMathCells(row)
+        .map((cell) => `<span class="math-matrix-cell">${mathBody(cell.trim())}</span>`)
+        .join('');
+      return `<span class="math-matrix-row">${cells}</span>`;
+    })
+    .join('');
+  const envClass = `math-matrix-${env.replace(/[^A-Za-z0-9]/g, '').toLowerCase() || 'matrix'}`;
+  return (
+    `<span class="math-matrix ${envClass}">` +
+    (open ? `<span class="math-matrix-delim math-matrix-open">${escapeHtml(open)}</span>` : '') +
+    `<span class="math-matrix-body">${rowsHtml}</span>` +
+    (close ? `<span class="math-matrix-delim math-matrix-close">${escapeHtml(close)}</span>` : '') +
+    '</span>'
+  );
+}
+
+/** cases 环境：左侧大括号 + 每行「表达式 & 条件」。 */
+function renderCases(content) {
+  const rowsHtml = splitMathRows(content)
+    .filter((row) => row.trim() !== '')
+    .map((row) => {
+      const cellsHtml = splitMathCells(row)
+        .map((cell, idx) => {
+          const kind = idx === 0 ? 'math-case-expr' : 'math-case-cond';
+          return `<span class="math-case-cell ${kind}">${mathBody(cell.trim())}</span>`;
+        })
+        .join('');
+      return `<span class="math-case-row">${cellsHtml}</span>`;
+    })
+    .join('');
+  return (
+    '<span class="math-cases">' +
+    '<span class="math-cases-delim">{</span>' +
+    `<span class="math-cases-body">${rowsHtml}</span>` +
+    '</span>'
+  );
+}
+
+/** aligned / align / gather / split… 多行对齐环境。 */
+function renderAligned(content) {
+  const rowsHtml = splitMathRows(content)
+    .filter((row) => row.trim() !== '')
+    .map((row) => {
+      const cellsHtml = splitMathCells(row)
+        .map((cell) => `<span class="math-aligned-cell">${mathBody(cell.trim())}</span>`)
+        .join('');
+      return `<span class="math-aligned-row">${cellsHtml}</span>`;
+    })
+    .join('');
+  return `<span class="math-aligned"><span class="math-aligned-body">${rowsHtml}</span></span>`;
+}
+
+/** 环境分发；未知环境降级但仍保留并解析其内容。 */
+let mathEnvDepth = 0;
+
+function renderEnvironment(name, content) {
+  const env = String(name || '').trim();
+  // 环境嵌套深度保护：超限直接文本降级，避免递归耗尽调用栈
+  if (mathEnvDepth >= MAX_MATH_ENV_DEPTH) {
+    return (
+      `<code class="math-fallback">\\begin{${escapeHtml(env)}}</code>` +
+      escapeHtml(content) +
+      `<code class="math-fallback">\\end{${escapeHtml(env)}}</code>`
+    );
+  }
+  mathEnvDepth++;
+  try {
+    if (MATH_MATRIX_ENVS.has(env)) {
+      return renderMatrix(env, env === 'array' ? stripEnvArgs(content) : content);
+    }
+    if (env === 'cases' || env === 'dcases') {
+      return renderCases(content);
+    }
+    if (MATH_ALIGN_ENVS.has(env)) {
+      return renderAligned(stripEnvArgs(content));
+    }
+    return (
+      `<code class="math-fallback">\\begin{${escapeHtml(env)}}</code>` +
+      mathBody(content) +
+      `<code class="math-fallback">\\end{${escapeHtml(env)}}</code>`
+    );
+  } finally {
+    mathEnvDepth--;
+  }
+}
+
 function mathBody(tex) {
   const src = tex === null || tex === undefined ? '' : String(tex);
   return new MathParser(src).parse();
@@ -1148,7 +1508,7 @@ function findEmphasisClose(src, from, ch, len) {
 }
 
 /** 尝试解析 * / _ 强调，返回 {html,end} 或 null。 */
-function parseEmphasis(src, i, ctx) {
+function parseEmphasis(src, i, ctx, depth) {
   const ch = src[i];
   if (ch === '_' && i > 0 && /[A-Za-z0-9]/.test(src[i - 1])) return null; // 词内下划线
   let run = 0;
@@ -1163,7 +1523,7 @@ function parseEmphasis(src, i, ctx) {
     if (end < 0) continue;
     const inner = src.slice(start, end);
     if (!inner.trim()) continue;
-    const html = renderInline(inner, ctx);
+    const html = renderInline(inner, ctx, depth + 1);
     if (len === 3) return { html: `<strong><em>${html}</em></strong>`, end: end + len };
     if (len === 2) return { html: `<strong>${html}</strong>`, end: end + len };
     return { html: `<em>${html}</em>`, end: end + len };
@@ -1174,9 +1534,11 @@ function parseEmphasis(src, i, ctx) {
 /**
  * 行内解析：一次从左到右扫描，遇到可识别结构就递归/内联生成 HTML。
  * 所有普通文本都走 escapeHtml，不做任何原始 HTML 透传。
+ * depth 为递归深度（强调/链接文本嵌套），超限时整段降级为纯文本。
  */
-function renderInline(text, ctx) {
+function renderInline(text, ctx, depth = 0) {
   const src = String(text === null || text === undefined ? '' : text);
+  if (depth > 64) return escapeHtml(src);
   let out = '';
   let plain = '';
   let i = 0;
@@ -1276,7 +1638,7 @@ function renderInline(text, ctx) {
     if (c === '[') {
       const node = parseLinkLike(src, i);
       if (node) {
-        push(renderLink(node.dest, renderInline(node.label, ctx)));
+        push(renderLink(node.dest, renderInline(node.label, ctx, depth + 1)));
         i = node.end;
         continue;
       }
@@ -1331,7 +1693,7 @@ function renderInline(text, ctx) {
     if (c === '~' && src[i + 1] === '~') {
       const end = findEmphasisClose(src, i + 2, '~', 2);
       if (end > i + 2) {
-        push(`<del>${renderInline(src.slice(i + 2, end), ctx)}</del>`);
+        push(`<del>${renderInline(src.slice(i + 2, end), ctx, depth + 1)}</del>`);
         i = end + 2;
         continue;
       }
@@ -1339,7 +1701,7 @@ function renderInline(text, ctx) {
 
     /* ---- 强调 * ** *** / _ __ ___ ---- */
     if (c === '*' || c === '_') {
-      const emphasized = parseEmphasis(src, i, ctx);
+      const emphasized = parseEmphasis(src, i, ctx, depth);
       if (emphasized) {
         push(emphasized.html);
         i = emphasized.end;
@@ -1973,7 +2335,9 @@ export function renderMarkdown(md, opts = {}) {
  *  6. 列表松散/紧凑判定用「出现空行」近似；深层缩进（>3 空格）的兄弟列表按嵌套处理；
  *  7. 代码高亮是词法级近似（不做语法分析）：JS 正则字面量不区分除法、
  *     模板字符串不递归解析 ${}、Rust 原始字符串仅做近似匹配；
- *  8. 数学只覆盖契约要求的 TeX 子集：\begin{...} 环境（matrix/cases）降级为
- *     math-fallback 文本；\color/\cancel 等未列出的命令同样降级。
+ *  8. 数学支持矩阵/多行环境（matrix、pmatrix、bmatrix、Bmatrix、vmatrix、
+ *     Vmatrix、array、cases、aligned/align/gather/split…）与大运算符上下限；
+ *     但不支持 \color/\cancel/\overbrace/\underbrace、multicolumn、\hline、
+ *     自动编号与交叉引用，这些命令统一降级为 math-fallback 文本。
  * ------------------------------------------------------------------
  */

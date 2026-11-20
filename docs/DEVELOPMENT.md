@@ -58,6 +58,22 @@ adb shell am start -n com.deepseek.pocket/.MainActivity --ez demo true   # 离�
 - `node server.mjs --mock` 时所有请求不发外网，可断网联调；
 - 401/402/429 会用本地假上游复现，不需要真实 Key。
 
+### 一键体检（doctor）
+
+遇到「起不来 / 手机打不开 / 打不出 APK」时先跑体检，比逐项手查快：
+
+```bash
+npm run doctor                  # 人类可读报告（OK / WARN / FAIL + 修复建议）
+node tools/doctor.mjs --json    # 机器可读，便于 CI 或脚本消费
+node tools/doctor.mjs --network # 额外检查 api.deepseek.com 可达性（默认不联网）
+```
+
+检查项：Node 版本（>= 20）、openssl、`.tls` 证书 SAN 与有效期、8787/8899 端口占用、JDK（java/javac/keytool）、Android SDK（build-tools + android.jar）、`android/debug.keystore`，以及可选的 API 可达性。
+
+- `OK`：正常；`WARN`：可选能力缺失或需注意，不影响 PWA/服务端（例如没装 Android SDK 仍能跑）；
+- `FAIL`：必须修复（Node 版本过低、HTTPS 证书过期等），退出码为 1（无 FAIL 为 0，脚本自身异常为 2）；
+- doctor 只读不写：不生成证书、不启动服务、不执行 git；端口被占用时按提示换端口或确认已有实例在跑。
+
 ## 4. 修改指南（常见任务）
 
 | 想改 | 动哪里 | 别忘 |

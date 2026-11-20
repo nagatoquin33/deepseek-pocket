@@ -2,6 +2,25 @@
 
 本项目遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)；提交信息参考 Conventional Commits。
 
+## [1.1.0] - 2026-11-20
+
+### 新增
+
+- 消息分支切换：重新生成保留旧回答，消息下方 `‹ n/m ›` 前后切换；版本随导入导出保存
+- TeX 渲染扩展：分式、`\sqrt[n]`、上下标组合、`\sum/\int` 等大运算符上下限、`\left(\right)`、矩阵（pmatrix/bmatrix/vmatrix）、cases、aligned，超深嵌套安全降级
+- `npm run doctor` 一键体检：Node、openssl、证书 SAN/有效期、端口、JDK、Android SDK、签名与网络
+- 英文 README 与文档站英文页；README 增加中英文切换
+- 渲染器与分支逻辑测试增至 209 项
+
+### 变更
+
+- 重新生成不再覆盖原回答，而是新增版本；切换版本时同步正文、思考、搜索卡片、引用与用量
+- 导入会话时清洗内容块，仅保留 http(s) 引用链接
+
+### 修复
+
+- QA 脚本与新设置入口（`#btn-account`）对齐
+
 ## [1.0.3] - 2026-11-19
 
 ### 修复
@@ -56,6 +75,7 @@
 - 开放平台余额、费用估算、系统提示词、深色模式、PWA 安装
 - 132 项自动化测试；GitHub Actions 自动测试、打包 APK、tag 发布 Release
 
+[1.1.0]: https://github.com/nagatoquin33/deepseek-pocket/compare/v1.0.3...v1.1.0
 [1.0.3]: https://github.com/nagatoquin33/deepseek-pocket/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/nagatoquin33/deepseek-pocket/compare/v1.0.1...v1.0.2
 [1.0.1]: https://github.com/nagatoquin33/deepseek-pocket/compare/v1.0.0...v1.0.1

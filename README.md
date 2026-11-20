@@ -6,6 +6,8 @@
 [![platform](https://img.shields.io/badge/Android-8.0%2B%20%7C%20Web-lightgrey.svg)](#10-兼容性)
 [![docs](https://img.shields.io/badge/docs-GitHub%20Pages-blue.svg)](https://nagatoquin33.github.io/deepseek-pocket/)
 
+[中文](README.md) · [English](README.en.md)
+
 手机上的 DeepSeek，**用你自己的开放平台（platform.deepseek.com）额度**。
 深度思考、智能搜索与引用、语音输入与朗读、多会话、系统提示词、用量统计，一个不落。
 零构建、零前端框架：Android 用直连 API 的原生壳，浏览器用 Node 起一个局域网服务。
@@ -48,9 +50,9 @@
 | --- | --- | --- |
 | ![搜索](docs/screenshots/11-search.png) | ![深色](docs/screenshots/12-dark.png) | ![用量](docs/screenshots/14-usage.png) |
 
-| 登录 | Android APK 实机 |
+| 登录 | 消息分支切换 | Android APK 实机 |
 | --- | --- |
-| ![登录](docs/screenshots/01-login.png) | ![APK](docs/screenshots/13-android.png) |
+| ![登录](docs/screenshots/01-login.png) | ![分支](docs/screenshots/15-branches.png) | ![APK](docs/screenshots/13-android.png) |
 
 ---
 
@@ -62,8 +64,8 @@
 - **智能搜索**：服务端 `deepseek_web_search` / `deepseek_read_url`，检索步骤可视化（查询词、结果卡片、打开网页），正文 `[n]` 角标 + 参考来源
 - 图片理解（`image_url`）与文档问答（Files API 解析后 `file_id` 引用）
 - **完整用量**：`↑输入 · ↓输出 · 缓存命中率 · 思考 token · 首字延迟 · 输出速度 · 耗时 · 估算费用`
-- 消息操作：复制、重新生成、编辑重发、朗读、点赞/点踩、删除、导出 Markdown
-- Markdown / 表格 / 任务列表 / 代码高亮（15 语言 + 复制）/ **Mermaid** / TeX 公式子集
+- 消息操作：复制、重新生成（保留旧版本，`‹ n/m ›` 切换）、编辑重发、朗读、点赞/点踩、删除、导出 Markdown
+- Markdown / 表格 / 任务列表 / 代码高亮（15 语言 + 复制）/ **Mermaid** / TeX（分式、根式、矩阵、cases、aligned、大运算符）
 - 多轮上下文 + 每条用户消息前注入 `latest_reminder`（日期、地区、语言）
 - 内容安全审核可选（默认关闭，`safety_check: high`）
 
@@ -234,9 +236,10 @@ Android APK ── WebView(https://appassets.local, assets 拦截) ──┐
 | 命令 | 说明 |
 | --- | --- |
 | `npm start` / `npm run mock` / `npm run https` | 启动服务 |
-| `npm test` | 132 项：服务端 26 + 渲染器 106 |
+| `npm test` | 209 项：服务端、渲染器、分支、doctor |
 | `npm run qa` | Chrome 无头端到端（需先起 `--mock --port 8899`） |
 | `npm run qa:voice` | 假麦克风录音 → ASR → 朗读按钮切换 |
+| `npm run doctor` | 一键体检：Node / openssl / 证书 SAN / 端口 / JDK / SDK / 签名 |
 | `npm run shots` | 生成 `docs/screenshots/` 文档截图 |
 | `node tools/qa/extract-logo.py` / `make-icons.py` | 从官方图标提取标记并生成启动图标 |
 
@@ -281,8 +284,8 @@ Android APK ── WebView(https://appassets.local, assets 拦截) ──┐
 1. **没有 OAuth 一键登录**（平台未提供第三方授权），故为「预置密钥 / 粘贴密钥」。
 2. 复刻是**高保真**而非像素级；未使用官方 App 私有资源。
 3. 未接入 Responses / Anthropic Messages 协议（能力等价，可扩展）。
-4. 数学公式为 TeX 子集（无 matrix/cases）；Markdown 不透传原始 HTML（安全优先）。
-5. 缺少：消息分支切换、继续生成、ZIP 带附件导入导出、中英双语界面。
+4. 数学公式覆盖常用 TeX 结构（分式、根式、矩阵、cases、aligned、大运算符上下限）；Markdown 不透传原始 HTML（安全优先）。
+5. 缺少：继续生成、ZIP 带附件导入导出、中英双语界面。
 6. 朗读为整段 WAV 合成（未用 TTS WebSocket 边生成边播）。
 7. iOS 自签证书需手动信任；部分 Android 浏览器会拦截自签 HTTPS 的麦克风。
 8. 服务端限流为进程内固定窗口，未解析 `X-Forwarded-For`；公网部署请自行加反向代理与鉴权。
@@ -312,13 +315,13 @@ Android APK ── WebView(https://appassets.local, assets 拦截) ──┐
 | --- | --- | --- |
 | 多会话 / 自动标题 / 重命名 / 删除 | ✅ | |
 | 编辑重发 / 重新生成 | ✅ | |
-| 消息分支切换 | ❌ | 覆盖式重新生成 |
+| 消息分支切换 | ✅ | 重新生成保留旧版本，可前后切换 |
 | 流式 / 深度思考 / 联网 / 读链接 / 引用 | ✅ | |
 | 停止生成 / 继续生成 | ✅ / ❌ | 继续生成未接入 |
 | 上传 / 粘贴 / 拖拽附件 | ✅ | |
 | 语音输入 / 朗读 / 频谱 | ✅ / ✅ / RMS 波形 | |
-| Markdown / 代码高亮 | ✅ | 自研渲染器 106 项测试 |
-| KaTeX 数学 | ⚠️ TeX 子集 | |
+| Markdown / 代码高亮 | ✅ | 自研渲染器 132 项测试 |
+| KaTeX 数学 | ⚠️ 自研 TeX 渲染 | 覆盖常用结构，非完整 KaTeX |
 | Mermaid | ✅ | 本地内置，离线可用 |
 | 中英双语界面 | ❌ | |
 | 浅色 / 深色 / 移动端 | ✅ | 另有 PWA、Android APK |

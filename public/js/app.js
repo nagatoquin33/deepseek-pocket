@@ -7,6 +7,7 @@ import { createMockClient } from './mock-client.js';
 import { addChat, addTTS, addASR, summary, resetUsage } from './usage.js';
 import { store } from './store.js';
 import { ChatView, composeRequestBody, applyChunk } from './chat.js';
+import { ensureVariants, addVariant, switchVariant } from './branch.js';
 import { openSettings, openModelSheet, maskKey } from './settings.js';
 import { openSearchPanel, openReader } from './search.js';
 import { Sidebar } from './sidebar.js';
@@ -359,9 +360,15 @@ async function sendMessage(text, { attachments = [] } = {}) {
   await runAssistant();
 }
 
-async function runAssistant() {
+/**
+ * 跑一轮助手生成。
+ * @param context 本轮请求的上下文消息（重新生成时只到上一条用户消息）
+ * @param mergeInto 重新生成的目标消息：结果作为新版本并入，而不是新消息
+ */
+async function runAssistant({ context = null, mergeInto = null } = {}) {
   const session = ensureSession();
   const eff = effectiveSettings();
+  const requestSession = context ? { ...session, messages: context } : session;
   const asst = chat.beginAssistant(eff.model);
   const ctrl = new AbortController();
   S.abort = ctrl;
@@ -370,7 +377,27 @@ async function runAssistant() {
 
   chat.onEvent.onStream = () => { /* 滚动由 ChatView 内部处理 */ };
 
-  const body = composeRequestBody({ session, settings: eff });
+  /** 收尾：普通发送直接定稿；重新生成并入原消息成为新版本，空结果则丢弃临时消息 */
+  const settle = () => {
+    if (!mergeInto) { chat.finishAssistant(asst); return asst; }
+    if (S.session !== session) {          // 生成期间切走了会话：不要改写当前画布
+      chat.discardMessage(asst);
+      return mergeInto;
+    }
+    const hasPayload = !!(asst.content || asst.reasoningContent || (asst.blocks && asst.blocks.length));
+    if (hasPayload) {
+      const merged = mergeRegenerated(mergeInto, asst);
+      if (!merged) chat.discardMessage(asst);      // 原消息已被删除等异常：不要留下孤儿节点
+      chat.setSession(session);
+      return merged || mergeInto;
+    }
+    chat.discardMessage(asst);
+    chat.setSession(session);
+    if (asst.error) toast(asst.error, { type: 'error', ms: 4200 });
+    return mergeInto;
+  };
+
+  const body = composeRequestBody({ session: requestSession, settings: eff });
   // 会话级开关写回消息请求；标题只取首轮
   try {
     await S.client.chat(body, {
@@ -396,18 +423,18 @@ async function runAssistant() {
       asst.error = '模型没有返回内容，请重试。';
       asst.status = 'error';
     }
-    chat.finishAssistant(asst);
+    settle();
     afterAnswer(asst, startedAt);
   } catch (e) {
     if (e?.name === 'AbortError') {
       asst.status = 'done';
       asst.finishReason = 'aborted';
-      if (!asst.content && !asst.reasoningContent) asst.content = '（已停止生成）';
-      chat.finishAssistant(asst);
+      if (!asst.content && !asst.reasoningContent && !mergeInto) asst.content = '（已停止生成）';
+      settle();
       toast('已停止生成');
       afterAnswer(asst, startedAt, { partial: true });
     } else {
-      handleApiError(e, asst);
+      handleApiError(e, asst, { mergeInto });
     }
   } finally {
     setBusy(false);
@@ -417,7 +444,20 @@ async function runAssistant() {
   }
 }
 
-function handleApiError(e, asst) {
+/** 把重新生成的结果并入原消息：旧回答保留为历史版本，新回答成为当前版本 */
+function mergeRegenerated(target, asst) {
+  const session = S.session;
+  if (!session) return null;
+  const idx = session.messages.findIndex((m) => m.id === target.id);
+  if (idx < 0) return null;
+  chat.discardMessage(asst);                       // 临时消息从消息数组与 DOM 中移除
+  const merged = addVariant(session.messages[idx], asst);
+  session.messages[idx] = merged;
+  S.speakingId = '';
+  return merged;
+}
+
+function handleApiError(e, asst, { mergeInto = null } = {}) {
   const status = e?.status || 0;
   let msg = e?.message || '请求失败';
   if (status === 401) {
@@ -436,7 +476,13 @@ function handleApiError(e, asst) {
   }
   asst.error = msg;
   asst.status = 'error';
-  chat.finishAssistant(asst, { error: msg });
+  if (mergeInto) {
+    // 重新生成失败：保留原消息与已有版本，不写入失败版本
+    chat.discardMessage(asst);
+    chat.setSession(S.session);
+  } else {
+    chat.finishAssistant(asst, { error: msg });
+  }
   toast(msg, { type: 'error', ms: 4200 });
   haptic([12, 40, 12]);
 }
@@ -479,10 +525,35 @@ async function regenerate(msg) {
   let userIdx = idx;
   while (userIdx >= 0 && session.messages[userIdx].role !== 'user') userIdx -= 1;
   if (userIdx < 0) return;
-  session.messages = session.messages.slice(0, userIdx + 1);
+
+  // 重新生成不再覆盖旧回答：原消息保留，本轮结果并入成为新版本
+  if (S.speakingId === msg.id) { try { S.tts?.stop(); } catch { /* ignore */ } }
+  const target = ensureVariants(session.messages[idx]);
+  session.messages[idx] = target;
+  const context = session.messages.slice(0, userIdx + 1);
+  if (idx < session.messages.length - 1) {
+    session.messages = session.messages.slice(0, idx + 1);
+  }
   chat.setSession(session);
   updateChrome();
-  await runAssistant();
+  await runAssistant({ context, mergeInto: target });
+}
+
+/** 在回答的历史版本之间循环切换（‹ n/m ›） */
+async function switchMessageVariant(msg, direction) {
+  if (S.streaming) { toast('正在生成，稍后再切换版本'); return; }
+  const session = S.session;
+  if (!session) return;
+  const idx = session.messages.findIndex((m) => m.id === msg.id);
+  if (idx < 0) return;
+  const current = ensureVariants(session.messages[idx]);
+  const next = switchVariant(current, direction);
+  if (next.activeVariant === current.activeVariant) return;
+  session.messages[idx] = next;
+  if (S.speakingId === next.id) { try { S.tts?.stop(); } catch { /* ignore */ } }
+  chat.refreshMessage(next);
+  haptic(5);
+  await persistCurrent();
 }
 
 async function editMessage(msg) {
@@ -979,6 +1050,7 @@ function bindUI() {
     container: $('#messages'),
     onEvent: {
       onRegenerate: (msg) => regenerate(msg),
+      onSwitchVariant: (msg, direction) => switchMessageVariant(msg, direction),
       onSpeak: (msg) => speakMessage(msg),
       onEdit: (msg) => editMessage(msg),
       onMore: (msg) => moreMenu(msg),

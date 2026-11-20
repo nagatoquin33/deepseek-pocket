@@ -81,10 +81,10 @@ const waitGone = async (page, sel, timeout = 8000) => {
   await shot(page, '05-sidebar');
 
   // 设置（侧栏保持打开）
-  await click(page, '#btn-settings');
+  await click(page, '#btn-account');
   await sleep(700);
   await shot(page, '06-settings');
-  await click(page, '.sheet-mask');
+  await click(page, '[data-back]');
   await sleep(500);
 
   // 模型面板

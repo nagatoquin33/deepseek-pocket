@@ -4,6 +4,7 @@
  * ========================================================================= */
 
 import { uid } from './ui.js';
+import { ensureVariants } from './branch.js';
 
 const DB_NAME = 'deepseek-pocket';const DB_VER = 1;
 const SS = 'sessions';
@@ -161,6 +162,8 @@ export const store = {
   },
 
   async saveSession(session) {
+    if (!session) return;
+    syncSessionVariants(session);   // 旧消息在写盘前补上 variants，保证不丢历史版本
     session.updatedAt = Date.now();
     if (this.backend === 'idb') {
       try {
@@ -251,7 +254,7 @@ export function normalizeSession(raw) {
   }
 
   const title = String(raw.title || raw.name || firstTitle(messages) || '未命名对话').slice(0, 120);
-  return {
+  const session = {
     id,
     title,
     createdAt,
@@ -264,6 +267,30 @@ export function normalizeSession(raw) {
     titleGenerated: !!raw.titleGenerated,
     messages,
   };
+  return migrateSessionMessages(session);
+}
+
+/**
+ * 读取/写盘前迁移消息：assistant 消息补上 variants（旧数据 = 1 个版本）。
+ * 幂等：已迁移的消息再跑一次不会改变内容，只保证快照与投影一致。
+ */
+export function migrateSessionMessages(session) {
+  if (!session || !Array.isArray(session.messages)) return session;
+  session.messages = session.messages.map((m) => ensureVariants(m));
+  return session;
+}
+
+/**
+ * 就地迁移：不替换消息对象本身。
+ * 写盘时正在流式输出的消息仍被 ChatView 引用，换掉对象会导致增量写进旧引用。
+ */
+function syncSessionVariants(session) {
+  if (!session || !Array.isArray(session.messages)) return session;
+  for (const m of session.messages) {
+    const next = ensureVariants(m);
+    if (next !== m) Object.assign(m, next);
+  }
+  return session;
 }
 
 function normalizeMessage(m) {
@@ -275,15 +302,137 @@ function normalizeMessage(m) {
     : Array.isArray(m.content)
       ? m.content.filter((p) => p && (p.type === 'text' || typeof p.text === 'string')).map((p) => p.text || '').join('\n')
       : '';
-  return {
+  const createdAt = toTime(m.createdAt || m.create_time || m.created) || Date.now();
+
+  if (role === 'user') {
+    return {
+      id: m.id || uid('m'),
+      role,
+      content,
+      attachments: Array.isArray(m.attachments) ? m.attachments : undefined,
+      createdAt,
+      model: m.model,
+      usage: m.usage,
+      status: 'done',
+    };
+  }
+
+  // assistant：保留版本内容（思考块 / 搜索卡片 / 引用 / 用量），导入后仍能切换版本
+  const msg = {
     id: m.id || uid('m'),
     role,
-    content,
-    attachments: Array.isArray(m.attachments) ? m.attachments : undefined,
-    createdAt: toTime(m.createdAt || m.create_time || m.created) || Date.now(),
-    model: m.model,
-    usage: m.usage,
-    status: 'done',
+    createdAt,
+    ...normalizeVariantFields(m, content),
+  };
+  const rawVariants = Array.isArray(m.variants) ? m.variants : [];
+  const variants = rawVariants
+    .map((v) => (v && typeof v === 'object'
+      ? normalizeVariantFields(v, typeof v.content === 'string' ? v.content : content)
+      : null))
+    .filter(Boolean);
+  if (variants.length) {
+    msg.variants = variants;
+    msg.activeVariant = Number.isInteger(m.activeVariant) ? m.activeVariant : 0;
+  }
+  return ensureVariants(msg);
+}
+
+/* ------------------------ 版本内容字段清洗（导入边界） ------------------------ */
+
+const SAFE_URL = /^https?:\/\//i;
+
+function safeUrl(v) {
+  const s = typeof v === 'string' ? v.trim() : '';
+  return SAFE_URL.test(s) ? s : '';
+}
+function plainText(v) {
+  return typeof v === 'string' ? v : '';
+}
+function finiteNumber(v, fallback = 0) {
+  return Number.isFinite(v) ? v : fallback;
+}
+function objectList(v) {
+  return Array.isArray(v) ? v.filter((x) => x && typeof x === 'object') : [];
+}
+
+/** 引用 / 来源：只保留 http(s) 链接，防止导入文件注入 javascript: 等危险协议 */
+function normalizeCitations(raw) {
+  return objectList(raw)
+    .map((c) => ({
+      url: safeUrl(c.url || c.citation?.url),
+      title: plainText(c.title || c.citation?.title),
+    }))
+    .filter((c) => c.url);
+}
+
+function normalizeToolStep(s) {
+  return {
+    id: plainText(s.id),
+    name: plainText(s.name) || 'deepseek_web_search',
+    action: plainText(s.action) || 'search',
+    kind: plainText(s.kind) || 'search',
+    queries: (Array.isArray(s.queries) ? s.queries : []).filter((q) => typeof q === 'string'),
+    url: safeUrl(s.url),
+    pattern: plainText(s.pattern),
+    results: objectList(s.results)
+      .map((r) => ({
+        url: safeUrl(r.url),
+        title: plainText(r.title),
+        site: plainText(r.site),
+        icon: safeUrl(r.icon),
+        snippet: plainText(r.snippet),
+        pageAge: r.pageAge ?? null,
+        kind: plainText(r.kind) || 'search',
+      }))
+      .filter((r) => r.url),
+    error: plainText(s.error),
+    done: !!s.done,
+  };
+}
+
+/** 只接受 think / text / tools 三类已知块，未知结构直接丢弃 */
+function normalizeBlocks(raw) {
+  if (!Array.isArray(raw)) return [];
+  const blocks = [];
+  for (const b of raw) {
+    if (!b || typeof b !== 'object') continue;
+    if (b.type === 'think') {
+      blocks.push({
+        type: 'think',
+        text: plainText(b.text),
+        start: finiteNumber(b.start),
+        end: finiteNumber(b.end),
+      });
+    } else if (b.type === 'text') {
+      blocks.push({ type: 'text', text: plainText(b.text), citations: normalizeCitations(b.citations) });
+    } else if (b.type === 'tools') {
+      blocks.push({ type: 'tools', steps: objectList(b.steps).map(normalizeToolStep) });
+    }
+  }
+  return blocks;
+}
+
+/** 顶层消息与 variants 快照共用同一套内容清洗 */
+function normalizeVariantFields(src, contentOverride) {
+  return {
+    content: contentOverride !== undefined ? plainText(contentOverride) : plainText(src.content),
+    reasoningContent: plainText(src.reasoningContent),
+    blocks: normalizeBlocks(src.blocks),
+    annotations: normalizeCitations(src.annotations),
+    citations: normalizeCitations(src.citations),
+    serverToolCalls: objectList(src.serverToolCalls),
+    usage: src.usage && typeof src.usage === 'object' ? { ...src.usage } : null,
+    title: plainText(src.title),
+    model: src.model,
+    reasoningStart: finiteNumber(src.reasoningStart),
+    reasoningEnd: finiteNumber(src.reasoningEnd),
+    finishReason: plainText(src.finishReason),
+    refusal: plainText(src.refusal),
+    durationMs: finiteNumber(src.durationMs) || undefined,
+    firstTokenMs: finiteNumber(src.firstTokenMs) || undefined,
+    status: src.status === 'error' ? 'error' : 'done',
+    error: plainText(src.error),
+    feedback: plainText(src.feedback),
   };
 }
 
