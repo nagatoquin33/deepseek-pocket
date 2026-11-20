@@ -18,6 +18,7 @@ export const DEFAULT_SETTINGS = {
   effort: 'high',
   webSearch: true,
   safety: false,
+  edgeSwipe: false,      // 左缘右滑打开侧栏（牺牲系统左缘返回手势）
   theme: 'auto',            // auto | light | dark
   lang: 'zh',               // zh | en
   language: '中文',         // 传给模型的用户语言

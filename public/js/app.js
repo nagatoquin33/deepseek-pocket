@@ -882,7 +882,11 @@ function closeSidebar() {
 function settingsCtx() {
   return {
     settings: () => S.settings,
-    saveSettings: (patch) => { store.saveSettings(patch); S.settings = store.settings; },
+    saveSettings: (patch) => {
+      store.saveSettings(patch);
+      S.settings = store.settings;
+      if (Object.prototype.hasOwnProperty.call(patch, 'edgeSwipe')) applyEdgeSwipeSetting();
+    },
     applySettings: () => { applyTheme(); updateChrome(); },
     applyTheme,
     getKey: () => S.key,
@@ -1115,6 +1119,37 @@ function bindMessageSwipe() {
   }, { passive: true });
 }
 
+/** 把“左缘滑动打开侧栏”开关同步给 Android 壳（决定是否让出系统手势区） */
+function applyEdgeSwipeSetting() {
+  try { window.DSAndroid?.setEdgeSwipe?.(!!S.settings.edgeSwipe && S.native); } catch { /* 浏览器忽略 */ }
+}
+
+/** 左缘向右滑打开侧栏（需在设置里开启，避免与系统返回手势冲突） */
+function bindEdgeSwipe() {
+  let ex = 0; let ey = 0; let active = false;
+  document.addEventListener('touchstart', (e) => {
+    if (!S.settings.edgeSwipe) return;
+    if (e.touches.length !== 1) return;
+    if (document.querySelector('.sheet-wrap, .modal-wrap, .search-panel, .settings-page')) return;
+    if ($('#sidebar')?.classList.contains('open')) return;
+    const x = e.touches[0].clientX;
+    if (x > 24) { active = false; return; }
+    ex = x;
+    ey = e.touches[0].clientY;
+    active = true;
+  }, { passive: true });
+  document.addEventListener('touchend', (e) => {
+    if (!active) return;
+    active = false;
+    const t = e.changedTouches && e.changedTouches[0];
+    if (!t) return;
+    const dx = t.clientX - ex;
+    const dy = t.clientY - ey;
+    if (dx > 70 && Math.abs(dx) > Math.abs(dy) * 1.4) { openSidebar(); haptic(6); }
+  }, { passive: true });
+  document.addEventListener('touchcancel', () => { active = false; }, { passive: true });
+}
+
 function bindUI() {
   chat = new ChatView({
     container: $('#messages'),
@@ -1156,6 +1191,13 @@ function bindUI() {
   $('#btn-menu').addEventListener('click', openSidebar);
   bindSidebarDrag();
   bindMessageSwipe();
+  bindEdgeSwipe();
+  // 键盘弹出时保持输入区可见
+  window.visualViewport?.addEventListener('resize', () => {
+    if (document.activeElement && document.activeElement.id === 'input') {
+      setTimeout(() => scrollToBottom($('#messages')), 80);
+    }
+  });
   $('#btn-sidebar-close')?.addEventListener('click', closeSidebar);
   $('#scrim').addEventListener('click', closeSidebar);
   $('#btn-model').addEventListener('click', () => openModelSheet(settingsCtx()));
@@ -1272,10 +1314,52 @@ function bindUI() {
     if (document.querySelector('.lightbox')) { document.querySelector('.lightbox').click(); return true; }
     const rec = document.querySelector('#recorder');
     if (rec && !rec.hidden) { hideRecorder(); return true; }
+    const settingsPage = document.querySelector('.settings-page');
+    if (settingsPage) { settingsPage.querySelector('[data-back]')?.click(); return true; }
     if (document.querySelector('#sidebar').classList.contains('open')) { closeSidebar(); return true; }
     if (S.tts?.busy) { S.tts.stop(); return true; }
     if (S.streaming) { stopStreaming(); return true; }
     return false;
+  };
+
+  /* Android 13+ 预测性返回：手势进行时实时预览浮层收起 */
+  const backPreviewTarget = () => {
+    const layer = document.querySelector('.sheet-wrap');
+    if (layer) return { type: 'sheet', el: layer.querySelector('.sheet') || layer };
+    const modal = document.querySelector('.modal-wrap');
+    if (modal) return { type: 'sheet', el: modal.firstElementChild || modal };
+    const panel = document.querySelector('.search-panel');
+    if (panel) return { type: 'x', el: panel };
+    const st = document.querySelector('.settings-page');
+    if (st) return { type: 'x', el: st };
+    const sb = $('#sidebar');
+    if (sb && sb.classList.contains('open')) return { type: 'x', el: sb };
+    return null;
+  };
+  window.__dsBackPrepare = () => {
+    S.backPreview = backPreviewTarget();
+    if (!S.backPreview) return;
+    S.backPreview.el.style.transition = 'none';
+  };
+  window.__dsBackProgress = (p) => {
+    const t = S.backPreview;
+    if (!t) return;
+    const q = Math.min(1, Math.max(0, Number(p) || 0));
+    if (t.type === 'sheet') t.el.style.transform = `translateY(${t.el.offsetHeight * q}px)`;
+    else t.el.style.transform = `translateX(${-t.el.offsetWidth * q}px)`;
+  };
+  window.__dsBackCancel = () => {
+    const t = S.backPreview;
+    if (!t) return;
+    t.el.style.transition = '';
+    t.el.style.transform = '';
+    S.backPreview = null;
+  };
+  window.__dsBackInvoked = () => {
+    const t = S.backPreview;
+    S.backPreview = null;
+    if (t) { t.el.style.transition = ''; t.el.style.transform = ''; }
+    return window.__dsBack();
   };
   // 粘贴图片（桌面端截图）与拖拽文件上传，与官方 Demo 一致
   document.addEventListener('paste', (e) => {
@@ -1360,6 +1444,7 @@ async function enterMain({ silent = false } = {}) {
   if (!silent) { /* 登录成功后不额外提示 */ }
   refreshBalance(false);
   applySettingsAfterLogin();
+  applyEdgeSwipeSetting();
   handleDeepLinkScreen();
   registerSW();
 }

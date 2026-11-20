@@ -1094,7 +1094,7 @@ code, pre { font-family: var(--mono); }
 .suggestions { display: none; }
 
 /* 输入卡 */
-.composer-wrap { padding: 6px 14px calc(10px + var(--safe-bottom)); background: var(--bg); }
+.composer-wrap { padding: 6px 14px calc(10px + var(--safe-bottom)); background: var(--bg); transition: padding-bottom .18s ease; }
 .composer {
   border: 1px solid #EFF0F4;
   border-radius: 26px;

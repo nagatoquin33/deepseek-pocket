@@ -11,6 +11,7 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Insets;
+import android.graphics.Rect;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -21,6 +22,9 @@ import android.view.View;
 import android.view.Window;
 import android.view.WindowInsets;
 import android.view.WindowManager;
+import android.window.BackEvent;
+import android.window.OnBackAnimationCallback;
+import android.window.OnBackInvokedDispatcher;
 import android.webkit.ConsoleMessage;
 import android.webkit.JavascriptInterface;
 import android.webkit.PermissionRequest;
@@ -68,6 +72,7 @@ public class MainActivity extends Activity {
     private long lastBackAt = 0;
     private float insTop = 0, insBottom = 0, insLeft = 0, insRight = 0;
     private boolean pageLoaded = false;
+    private boolean edgeSwipeEnabled = false;
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -104,6 +109,7 @@ public class MainActivity extends Activity {
         web.setWebViewClient(new Client());
         web.setWebChromeClient(new Chrome());
         setupEdgeToEdge();
+        setupBack();
         web.addJavascriptInterface(new Bridge(), "DSAndroid");
         if (Build.VERSION.SDK_INT >= 19) WebView.setWebContentsDebuggingEnabled(true);
 
@@ -276,6 +282,7 @@ public class MainActivity extends Activity {
             pageLoaded = true;
             view.post(MainActivity.this::applyInsetsToPage);
             view.postDelayed(MainActivity.this::applyInsetsToPage, 400);
+            view.post(MainActivity.this::applyEdgeExclusion);
             view.evaluateJavascript(
                     "(function(){try{var t=localStorage.getItem('ds.settings');"
                             + "if(!t)return;var s=JSON.parse(t);var d=s.theme==='dark'||(s.theme!=='light'&&s.theme!=='dark'&&false);"
@@ -372,6 +379,14 @@ public class MainActivity extends Activity {
             } catch (Throwable e) {
                 return "1.0.0";
             }
+        }
+
+        @JavascriptInterface
+        public void setEdgeSwipe(boolean on) {
+            runOnUiThread(() -> {
+                edgeSwipeEnabled = on;
+                applyEdgeExclusion();
+            });
         }
 
         @JavascriptInterface
@@ -481,24 +496,87 @@ public class MainActivity extends Activity {
         super.onDestroy();
     }
 
-    @Override
-    public void onBackPressed() {
+    /* ---------------------------- 返回与手势 ---------------------------- */
+
+    /** Android 13+ 走系统返回回调；14+ 额外支持预测性返回的进度动画 */
+    private void setupBack() {
+        if (Build.VERSION.SDK_INT >= 34) {
+            getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
+                    OnBackInvokedDispatcher.PRIORITY_DEFAULT,
+                    new OnBackAnimationCallback() {
+                        @Override
+                        public void onBackStarted(BackEvent event) {
+                            evaluate("window.__dsBackPrepare&&window.__dsBackPrepare()");
+                        }
+
+                        @Override
+                        public void onBackProgressed(BackEvent event) {
+                            evaluate("window.__dsBackProgress&&window.__dsBackProgress(" + event.getProgress() + ")");
+                        }
+
+                        @Override
+                        public void onBackCancelled() {
+                            evaluate("window.__dsBackCancel&&window.__dsBackCancel()");
+                        }
+
+                        @Override
+                        public void onBackInvoked() {
+                            finishBack();
+                        }
+                    });
+        } else if (Build.VERSION.SDK_INT >= 33) {
+            getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
+                    OnBackInvokedDispatcher.PRIORITY_DEFAULT, this::handleBack);
+        }
+    }
+
+    private void evaluate(String js) {
+        if (web != null) web.evaluateJavascript("(function(){try{" + js + "}catch(e){}})()", null);
+    }
+
+    /** 提交返回：先让页面收尾（关闭浮层），没处理再做“双击退出” */
+    private void finishBack() {
+        if (web == null) { super.onBackPressed(); return; }
+        web.evaluateJavascript(
+                "(function(){try{return !!(window.__dsBackInvoked&&window.__dsBackInvoked());}catch(e){return false;}})()",
+                value -> { if (!"true".equals(value)) fallbackBack(); });
+    }
+
+    /** 旧路径（Android 12 及以下，或从 onBackPressed 直接触发） */
+    private void handleBack() {
         if (web == null) { super.onBackPressed(); return; }
         web.evaluateJavascript(
                 "(function(){try{return !!(window.__dsBack&&window.__dsBack());}catch(e){return false;}})()",
-                value -> {
-                    boolean handled = "true".equals(value);
-                    if (handled) return;
-                    if (web.canGoBack()) { web.goBack(); return; }
-                    // 根页面：第一次只提示，2 秒内再返回才退出，避免全面屏手势误退
-                    long now = System.currentTimeMillis();
-                    if (now - lastBackAt < 2000) {
-                        lastBackAt = 0;
-                        moveTaskToBack(true);
-                    } else {
-                        lastBackAt = now;
-                        toast("再滑一次返回退出");
-                    }
-                });
+                value -> { if (!"true".equals(value)) fallbackBack(); });
+    }
+
+    private void fallbackBack() {
+        if (web != null && web.canGoBack()) { web.goBack(); return; }
+        // 根页面：第一次只提示，2 秒内再返回才退出，避免全面屏手势误退
+        long now = System.currentTimeMillis();
+        if (now - lastBackAt < 2000) {
+            lastBackAt = 0;
+            moveTaskToBack(true);
+        } else {
+            lastBackAt = now;
+            toast("再滑一次返回退出");
+        }
+    }
+
+    /** 只读：给左缘手势留出系统手势排除区（关闭后系统返回手势优先） */
+    private void applyEdgeExclusion() {
+        if (Build.VERSION.SDK_INT < 29 || web == null) return;
+        int h = web.getHeight();
+        if (!edgeSwipeEnabled || h <= 0) {
+            web.setSystemGestureExclusionRects(java.util.Collections.emptyList());
+            return;
+        }
+        int w = (int) (26 * getResources().getDisplayMetrics().density);
+        web.setSystemGestureExclusionRects(java.util.Collections.singletonList(new Rect(0, 0, w, h)));
+    }
+
+    @Override
+    public void onBackPressed() {
+        handleBack();
     }
 }

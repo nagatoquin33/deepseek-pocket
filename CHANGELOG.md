@@ -2,6 +2,18 @@
 
 本项目遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)；提交信息参考 Conventional Commits。
 
+## [1.3.0] - 2026-11-20
+
+### 新增
+
+- Android 14+ 预测性返回：手势进行时实时预览侧栏 / 底部抽屉收起，取消可回弹
+- 左缘右滑打开侧栏：设置 → 对话可开启，开启后左侧手势区留给应用（系统返回从右缘触发）
+- 键盘弹出时输入区过渡，并保持消息列表贴底
+
+### 变更
+
+- Android 13+ 返回统一走 OnBackInvokedDispatcher，保留「再滑一次退出」兜底
+
 ## [1.2.0] - 2026-11-20
 
 ### 新增
@@ -94,6 +106,7 @@
 - 开放平台余额、费用估算、系统提示词、深色模式、PWA 安装
 - 132 项自动化测试；GitHub Actions 自动测试、打包 APK、tag 发布 Release
 
+[1.3.0]: https://github.com/nagatoquin33/deepseek-pocket/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/nagatoquin33/deepseek-pocket/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/nagatoquin33/deepseek-pocket/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/nagatoquin33/deepseek-pocket/compare/v1.0.3...v1.1.0

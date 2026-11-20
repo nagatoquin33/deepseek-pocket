@@ -168,6 +168,7 @@ export function openSettings(ctx) {
         ${rowSwitch({ ico: 'globe', name: '智能搜索', desc: '服务端检索，检索本身不计费', id: 'st-webSearch', on: st.webSearch })}
         ${rowSwitch({ ico: 'shield', name: '内容安全审核', desc: '输入输出经平台风险审核', id: 'st-safety', on: st.safety })}
         ${rowLink({ ico: 'sparkle', name: '系统提示词', desc: '给模型的全局角色设定', value: st.systemPrompt ? `自定义 · ${st.systemPrompt.length} 字` : '默认', go: 'system' })}
+        ${rowSwitch({ ico: 'menu', name: '左缘滑动打开侧栏', desc: '开启后左侧手势区留给应用，系统返回从右缘触发', id: 'st-edge-swipe', on: st.edgeSwipe })}
       </div>
 
       <div class="group-label">关于</div>
@@ -363,6 +364,7 @@ export function openSettings(ctx) {
     swBind('st-safety', 'safety');
     swBind('st-autoRead', 'autoRead');
     swBind('st-haptics', 'haptics');
+  swBind('st-edge-swipe', 'edgeSwipe');
 
     body.querySelectorAll('[data-act]').forEach((el) => el.addEventListener('click', async () => {
       const act = el.dataset.act;
