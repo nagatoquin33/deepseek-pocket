@@ -341,7 +341,10 @@ code, pre { font-family: var(--mono); }
 }
 .bubble-user .att-imgs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6px; }
 .bubble-user .att-imgs img { width: 96px; height: 96px; object-fit: cover; border-radius: 12px; }
-.msg.assistant { flex-direction: column; align-items: stretch; min-width: 0; }
+.msg.assistant { flex-direction: column; align-items: stretch; min-width: 0; touch-action: pan-y; }
+.msg.assistant .code-block, .msg.assistant .math-display, .msg.assistant table { touch-action: auto; }
+.sidebar { will-change: transform; }
+.sheet { will-change: transform; }
 .asst-body { min-width: 0; width: 100%; }
 .asst-body > .md { min-width: 0; }
 .md table, .md pre, .code-block { max-width: 100%; }

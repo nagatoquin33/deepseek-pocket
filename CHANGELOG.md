@@ -2,6 +2,18 @@
 
 本项目遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)；提交信息参考 Conventional Commits。
 
+## [1.2.0] - 2026-11-20
+
+### 新增
+
+- 消息左右滑切换回答版本（仅多版本时生效，带触感反馈）
+- 底部抽屉从抓手/标题栏跟手下拉关闭，按距离或速度判定，松手回弹
+- 侧栏跟手左滑关闭，带阻尼与回弹
+
+### 变更
+
+- 媒体区域（代码块/表格/公式/图片）不参与消息滑动，避免与横向滚动冲突
+
 ## [1.1.1] - 2026-11-20
 
 ### 修复
@@ -82,6 +94,7 @@
 - 开放平台余额、费用估算、系统提示词、深色模式、PWA 安装
 - 132 项自动化测试；GitHub Actions 自动测试、打包 APK、tag 发布 Release
 
+[1.2.0]: https://github.com/nagatoquin33/deepseek-pocket/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/nagatoquin33/deepseek-pocket/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/nagatoquin33/deepseek-pocket/compare/v1.0.3...v1.1.0
 [1.0.3]: https://github.com/nagatoquin33/deepseek-pocket/compare/v1.0.2...v1.0.3

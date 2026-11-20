@@ -161,12 +161,48 @@ export function openSheet(el) {
   requestAnimationFrame(() => wrap.classList.add('in'));
   const close = () => {
     wrap.classList.remove('in');
+    el.style.transition = '';
+    el.style.transform = '';
     setTimeout(() => { wrap.remove(); el.classList.remove('sheet'); }, 220);
     document.removeEventListener('keydown', onKey);
   };
   const onKey = (e) => { if (e.key === 'Escape') close(); };
   document.addEventListener('keydown', onKey);
   wrap.querySelector('.sheet-mask').addEventListener('click', close);
+
+  // 下拉关闭：从抓手/标题栏拖动，跟手位移，松手按距离或速度决定关闭
+  let startY = 0; let dy = 0; let startT = 0; let dragging = false;
+  const head = el.querySelector('.sheet-head');
+  const grip = el.querySelector('.sheet-grip');
+  const onStart = (e) => {
+    if (e.touches.length !== 1) return;
+    startY = e.touches[0].clientY;
+    startT = Date.now();
+    dy = 0;
+    dragging = true;
+    el.style.transition = 'none';
+  };
+  const onMove = (e) => {
+    if (!dragging) return;
+    dy = Math.max(0, e.touches[0].clientY - startY);
+    if (dy > 0) el.style.transform = `translateY(${dy}px)`;
+  };
+  const onEnd = () => {
+    if (!dragging) return;
+    dragging = false;
+    el.style.transition = '';
+    el.style.transform = '';
+    const fast = dy > 40 && Date.now() - startT < 320;
+    if (dy > Math.min(150, el.offsetHeight * 0.28) || fast) close();
+    dy = 0;
+  };
+  for (const handle of [head, grip]) {
+    if (!handle) continue;
+    handle.addEventListener('touchstart', onStart, { passive: true });
+    handle.addEventListener('touchmove', onMove, { passive: true });
+    handle.addEventListener('touchend', onEnd, { passive: true });
+    handle.addEventListener('touchcancel', onEnd, { passive: true });
+  }
   return { close, wrap };
 }
 

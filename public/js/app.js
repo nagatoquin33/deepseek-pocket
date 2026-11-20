@@ -1045,6 +1045,76 @@ function openSearch() {
 let sidebar = null;
 let chat = null;
 
+/* ----------------------------- 全面屏手势 ----------------------------- */
+
+/** 侧栏：跟手左滑关闭（带阻尼，松手按距离回弹或关闭） */
+function bindSidebarDrag() {
+  const sb = $('#sidebar');
+  if (!sb) return;
+  let sx = 0; let sy = 0; let dx = 0; let dy = 0; let active = false;
+  sb.addEventListener('touchstart', (e) => {
+    if (e.touches.length !== 1) return;
+    sx = e.touches[0].clientX;
+    sy = e.touches[0].clientY;
+    dx = 0; dy = 0;
+    active = true;
+  }, { passive: true });
+  sb.addEventListener('touchmove', (e) => {
+    if (!active) return;
+    dx = e.touches[0].clientX - sx;
+    dy = e.touches[0].clientY - sy;
+    if (dx < 0 && Math.abs(dx) > Math.abs(dy) * 1.2) {
+      sb.style.transition = 'none';
+      sb.style.transform = `translateX(${Math.max(dx, -sb.offsetWidth * 0.6)}px)`;
+    }
+  }, { passive: true });
+  const end = () => {
+    if (!active) return;
+    active = false;
+    sb.style.transition = '';
+    sb.style.transform = '';
+    if (dx < -Math.min(110, sb.offsetWidth * 0.3)) closeSidebar();
+    dx = 0; dy = 0;
+  };
+  sb.addEventListener('touchend', end, { passive: true });
+  sb.addEventListener('touchcancel', end, { passive: true });
+}
+
+/** 消息：左右滑切换回答版本（仅多版本时生效） */
+function bindMessageSwipe() {
+  const box = $('#messages');
+  if (!box) return;
+  let node = null; let sx = 0; let sy = 0;
+  box.addEventListener('touchstart', (e) => {
+    if (e.touches.length !== 1) { node = null; return; }
+    const target = e.target.closest('.msg.assistant');
+    if (!target) { node = null; return; }
+    if (e.target.closest('.code-block, table, .math-display, img, a, input, textarea, .msg-actions, .source-list')) {
+      node = null;
+      return;
+    }
+    node = target;
+    sx = e.touches[0].clientX;
+    sy = e.touches[0].clientY;
+  }, { passive: true });
+  box.addEventListener('touchend', (e) => {
+    if (!node) return;
+    const t = e.changedTouches && e.changedTouches[0];
+    if (!t) { node = null; return; }
+    const dx = t.clientX - sx;
+    const dy = t.clientY - sy;
+    const target = node;
+    node = null;
+    if (Math.abs(dx) < 64 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    const msg = S.session?.messages.find((m) => m.id === target.dataset.id);
+    if (!msg) return;
+    const count = msg.variants?.length || 1;
+    if (count < 2) { haptic(4); return; }
+    switchMessageVariant(msg, dx < 0 ? 'next' : 'prev');
+    haptic(6);
+  }, { passive: true });
+}
+
 function bindUI() {
   chat = new ChatView({
     container: $('#messages'),
@@ -1084,6 +1154,8 @@ function bindUI() {
 
   // 顶栏
   $('#btn-menu').addEventListener('click', openSidebar);
+  bindSidebarDrag();
+  bindMessageSwipe();
   $('#btn-sidebar-close')?.addEventListener('click', closeSidebar);
   $('#scrim').addEventListener('click', closeSidebar);
   $('#btn-model').addEventListener('click', () => openModelSheet(settingsCtx()));
