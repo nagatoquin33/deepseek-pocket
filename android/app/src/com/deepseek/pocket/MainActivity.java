@@ -66,6 +66,8 @@ public class MainActivity extends Activity {
     private PermissionRequest pendingPermission;
     private boolean darkTheme = false;
     private long lastBackAt = 0;
+    private float insTop = 0, insBottom = 0, insLeft = 0, insRight = 0;
+    private boolean pageLoaded = false;
 
     @SuppressLint("SetJavaScriptEnabled")
     @Override
@@ -133,22 +135,27 @@ public class MainActivity extends Activity {
                     WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
             Insets ime = insets.getInsets(WindowInsets.Type.ime());
             float d = getResources().getDisplayMetrics().density;
-            float top = bars.top / d;
-            float bottom = Math.max(bars.bottom, ime.bottom) / d;
-            float left = bars.left / d;
-            float right = bars.right / d;
-            // 页面用 CSS 变量自行避让：全面屏手势区、状态栏、刘海、输入法都不会遮住内容
-            String js = String.format(
-                    "(function(){var r=document.documentElement.style;" +
-                            "r.setProperty('--inset-top','%.1fpx');" +
-                            "r.setProperty('--inset-bottom','%.1fpx');" +
-                            "r.setProperty('--inset-left','%.1fpx');" +
-                            "r.setProperty('--inset-right','%.1fpx');})()",
-                    top, bottom, left, right);
-            web.evaluateJavascript(js, null);
+            insTop = bars.top / d;
+            insBottom = Math.max(bars.bottom, ime.bottom) / d;
+            insLeft = bars.left / d;
+            insRight = bars.right / d;
+            applyInsetsToPage();
             return insets;
         });
         web.requestApplyInsets();
+    }
+
+    /** 把系统栏安全区写入页面 CSS 变量；页面加载完成后补写一次，避免首屏丢失 */
+    private void applyInsetsToPage() {
+        if (web == null || !pageLoaded) return;
+        String js = String.format(
+                "(function(){var r=document.documentElement&&document.documentElement.style;if(!r)return;" +
+                        "r.setProperty('--inset-top','%.1fpx');" +
+                        "r.setProperty('--inset-bottom','%.1fpx');" +
+                        "r.setProperty('--inset-left','%.1fpx');" +
+                        "r.setProperty('--inset-right','%.1fpx');})()",
+                insTop, insBottom, insLeft, insRight);
+        web.evaluateJavascript(js, null);
     }
 
     /* ------------------------------ 系统栏 ------------------------------ */
@@ -265,6 +272,10 @@ public class MainActivity extends Activity {
 
         @Override
         public void onPageFinished(WebView view, String url) {
+            // 首屏加载完成后再注入一次 insets，修复入口页顶栏被系统栏遮住/不显示
+            pageLoaded = true;
+            view.post(MainActivity.this::applyInsetsToPage);
+            view.postDelayed(MainActivity.this::applyInsetsToPage, 400);
             view.evaluateJavascript(
                     "(function(){try{var t=localStorage.getItem('ds.settings');"
                             + "if(!t)return;var s=JSON.parse(t);var d=s.theme==='dark'||(s.theme!=='light'&&s.theme!=='dark'&&false);"

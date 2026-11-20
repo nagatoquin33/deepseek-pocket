@@ -1135,7 +1135,7 @@ code, pre { font-family: var(--mono); }
   border-right: 0;
   box-shadow: 12px 0 40px rgba(10, 14, 24, .14);
 }
-.sidebar-head, .side-new, .balance-card, #btn-settings, #btn-theme, .side-item, .side-meta { display: none !important; }
+.sidebar-head, .side-new, .balance-card, #btn-settings, #btn-theme, .sidebar .side-item, .side-meta { display: none !important; }
 .side-search {
   height: 44px; border-radius: 999px; background: #F3F4F6;
   color: #9AA0AA; padding: 0 16px; margin: 2px 0 8px;

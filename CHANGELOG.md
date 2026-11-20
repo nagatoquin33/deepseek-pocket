@@ -2,6 +2,13 @@
 
 本项目遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)；提交信息参考 Conventional Commits。
 
+## [1.1.1] - 2026-11-20
+
+### 修复
+
+- 入口页顶栏不显示：insets 在页面加载前注入会丢失，改为页面加载完成后再注入一次
+- 消息「⋯」菜单空白：全局隐藏规则误伤菜单项，改为只作用于侧栏
+
 ## [1.1.0] - 2026-11-20
 
 ### 新增
@@ -75,6 +82,7 @@
 - 开放平台余额、费用估算、系统提示词、深色模式、PWA 安装
 - 132 项自动化测试；GitHub Actions 自动测试、打包 APK、tag 发布 Release
 
+[1.1.1]: https://github.com/nagatoquin33/deepseek-pocket/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/nagatoquin33/deepseek-pocket/compare/v1.0.3...v1.1.0
 [1.0.3]: https://github.com/nagatoquin33/deepseek-pocket/compare/v1.0.2...v1.0.3
 [1.0.2]: https://github.com/nagatoquin33/deepseek-pocket/compare/v1.0.1...v1.0.2
