@@ -18,7 +18,7 @@ export const DEFAULT_SETTINGS = {
   effort: 'high',
   webSearch: true,
   safety: false,
-  edgeSwipe: false,      // 左缘右滑打开侧栏（牺牲系统左缘返回手势）
+  edgeSwipe: true,       // 左缘右滑打开侧栏（默认开启）
   theme: 'auto',            // auto | light | dark
   lang: 'zh',               // zh | en
   language: '中文',         // 传给模型的用户语言
@@ -99,6 +99,12 @@ export const store = {
     if (!rawSettings.migratedAutoRead) {
       this.settings.autoRead = false;
       this.settings.migratedAutoRead = true;
+      lsSet(KEY_SETTINGS, this.settings);
+    }
+    // 左缘手势改为默认开启：旧安装一次性打开
+    if (!rawSettings.migratedEdgeSwipe) {
+      this.settings.edgeSwipe = true;
+      this.settings.migratedEdgeSwipe = true;
       lsSet(KEY_SETTINGS, this.settings);
     }
     this.ui = { ...this.ui, ...lsGet(KEY_UI, {}) };

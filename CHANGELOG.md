@@ -2,6 +2,14 @@
 
 本项目遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)；提交信息参考 Conventional Commits。
 
+## [1.3.1] - 2026-11-20
+
+### 变更
+
+- 左缘右滑打开侧栏改为默认开启，并移除设置开关：这是标准手势，不该让用户配置
+- 浮层 / 搜索 / 设置 / 侧栏打开时，左缘右滑等价于返回，左缘始终承担「返回上一级」语义
+- 旧安装一次性迁移为开启
+
 ## [1.3.0] - 2026-11-20
 
 ### 新增
@@ -106,6 +114,7 @@
 - 开放平台余额、费用估算、系统提示词、深色模式、PWA 安装
 - 132 项自动化测试；GitHub Actions 自动测试、打包 APK、tag 发布 Release
 
+[1.3.1]: https://github.com/nagatoquin33/deepseek-pocket/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/nagatoquin33/deepseek-pocket/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/nagatoquin33/deepseek-pocket/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/nagatoquin33/deepseek-pocket/compare/v1.1.0...v1.1.1

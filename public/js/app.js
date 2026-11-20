@@ -1121,7 +1121,7 @@ function bindMessageSwipe() {
 
 /** 把“左缘滑动打开侧栏”开关同步给 Android 壳（决定是否让出系统手势区） */
 function applyEdgeSwipeSetting() {
-  try { window.DSAndroid?.setEdgeSwipe?.(!!S.settings.edgeSwipe && S.native); } catch { /* 浏览器忽略 */ }
+  try { window.DSAndroid?.setEdgeSwipe?.(S.native); } catch { /* 浏览器忽略 */ }
 }
 
 /** 左缘向右滑打开侧栏（需在设置里开启，避免与系统返回手势冲突） */
@@ -1130,8 +1130,6 @@ function bindEdgeSwipe() {
   document.addEventListener('touchstart', (e) => {
     if (!S.settings.edgeSwipe) return;
     if (e.touches.length !== 1) return;
-    if (document.querySelector('.sheet-wrap, .modal-wrap, .search-panel, .settings-page')) return;
-    if ($('#sidebar')?.classList.contains('open')) return;
     const x = e.touches[0].clientX;
     if (x > 24) { active = false; return; }
     ex = x;
@@ -1145,7 +1143,14 @@ function bindEdgeSwipe() {
     if (!t) return;
     const dx = t.clientX - ex;
     const dy = t.clientY - ey;
-    if (dx > 70 && Math.abs(dx) > Math.abs(dy) * 1.4) { openSidebar(); haptic(6); }
+    if (!(dx > 70 && Math.abs(dx) > Math.abs(dy) * 1.4)) return;
+    // 浮层/搜索/设置/侧栏打开时，左缘右滑等价于返回
+    if (document.querySelector('.sheet-wrap, .modal-wrap, .search-panel, .settings-page') || $('#sidebar')?.classList.contains('open')) {
+      window.__dsBack?.();
+    } else {
+      openSidebar();
+    }
+    haptic(6);
   }, { passive: true });
   document.addEventListener('touchcancel', () => { active = false; }, { passive: true });
 }
