@@ -5,6 +5,7 @@
 
 import { uid } from './ui.js';
 import { ensureVariants } from './branch.js';
+import { DEFAULT_PROMPTS, normalizePrompts, migrateLegacy } from './prompts.js';
 
 const DB_NAME = 'deepseek-pocket';const DB_VER = 1;
 const SS = 'sessions';
@@ -35,6 +36,7 @@ export const DEFAULT_SETTINGS = {
   mock: false,
   nickname: 'DeepSeek 用户',
   systemPrompt: '',
+  prompts: DEFAULT_PROMPTS.map((p) => ({ ...p })),
 };
 
 /* ------------------------------ localStorage ------------------------------ */
@@ -106,6 +108,16 @@ export const store = {
       this.settings.edgeSwipe = true;
       this.settings.migratedEdgeSwipe = true;
       lsSet(KEY_SETTINGS, this.settings);
+    }
+    // 提示词升级为有序块：旧单条 systemPrompt 迁移为第一个块
+    if (!rawSettings.migratedPrompts) {
+      const legacy = String(rawSettings.systemPrompt || '').trim();
+      this.settings.prompts = legacy ? migrateLegacy(legacy) : normalizePrompts(this.settings.prompts);
+      this.settings.systemPrompt = '';
+      this.settings.migratedPrompts = true;
+      lsSet(KEY_SETTINGS, this.settings);
+    } else {
+      this.settings.prompts = normalizePrompts(this.settings.prompts);
     }
     this.ui = { ...this.ui, ...lsGet(KEY_UI, {}) };
     try {

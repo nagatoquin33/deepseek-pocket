@@ -2,9 +2,12 @@
  * app.js —— 应用主控：登录、会话、流式对话、语音、侧栏、设置、PWA
  * ========================================================================= */
 
-import { createClient, normalizeBalance, isNativeShell, isDirectHost } from './api.js';
+import { ApiError, createClient, normalizeBalance, isNativeShell, isDirectHost } from './api.js';
 import { createMockClient } from './mock-client.js';
 import { addChat, addTTS, addASR, summary, resetUsage } from './usage.js';
+import { normalizePrompts, migrateLegacy } from './prompts.js';
+import { contextUsage } from './tokens.js';
+import { sessionToJSONL, sessionToTXT, messageToMarkdown, safeFilename } from './exporter.js';
 import { store } from './store.js';
 import { ChatView, composeRequestBody, applyChunk } from './chat.js';
 import { ensureVariants, addVariant, switchVariant } from './branch.js';
@@ -128,6 +131,7 @@ function enterDemo() {
 /* --------------------------- 会话管理 ---------------------------------- */
 
 function newSession({ silent = false } = {}) {
+  if (S.streaming) stopStreaming();
   const session = {
     id: uid('s'),
     title: '',
@@ -172,8 +176,9 @@ async function deleteSession(id) {
   if (!s) return;
   const ok = await confirmDialog({ title: '删除这个对话？', message: s.title || '未命名对话', okText: '删除', danger: true });
   if (!ok) return;
-  await store.deleteSession(id);
   S.sessions = S.sessions.filter((x) => x.id !== id);
+  if (S.session?.id === id && S.streaming) stopStreaming();
+  await store.deleteSession(id);
   if (S.session?.id === id) {
     S.session = null;
     if (S.sessions[0]) await switchSession(S.sessions[0].id);
@@ -215,7 +220,9 @@ function sessionMenu(id) {
     <div class="sheet-body" style="padding-bottom:8px">
       <button class="side-item" data-a="pin">${icon('pin', { size: 18 })} ${s.pinned ? '取消置顶' : '置顶对话'}</button>
       <button class="side-item" data-a="rename">${icon('edit', { size: 18 })} 重命名</button>
-      <button class="side-item" data-a="export">${icon('download', { size: 18 })} 导出该对话</button>
+      <button class="side-item" data-a="export">${icon('download', { size: 18 })} 导出 JSON</button>
+      <button class="side-item" data-a="export-jsonl">${icon('download', { size: 18 })} 导出 JSONL</button>
+      <button class="side-item" data-a="export-txt">${icon('download', { size: 18 })} 导出 TXT</button>
       <button class="side-item set-danger" data-a="delete">${icon('trash', { size: 18 })} 删除对话</button>
     </div>`;
   const sheet = openSheet(el);
@@ -225,12 +232,33 @@ function sessionMenu(id) {
     sheet.close();
     if (a === 'pin') togglePin(id);
     else if (a === 'rename') renameSession(id);
-    else if (a === 'export') exportSession(s);
+    else if (a === 'export') exportSession(s, 'json');
+    else if (a === 'export-jsonl') exportSession(s, 'jsonl');
+    else if (a === 'export-txt') exportSession(s, 'txt');
     else if (a === 'delete') deleteSession(id);
   }));
 }
 
 /* --------------------------- 顶栏 / 欢迎页 ----------------------------- */
+
+/** 输入区上方的上下文预算条：本地估算 + 上次真实 prompt_tokens 校准 */
+function updateContextBar() {
+  const bar = $('#context-bar');
+  if (!bar) return;
+  const session = S.session;
+  const msgs = session ? session.messages.slice() : [];
+  const draft = $('#input')?.value.trim();
+  if (draft) msgs.push({ role: 'user', content: draft });
+  const usage = contextUsage(msgs, 128000, session?.lastPromptTokens || 0);
+  bar.hidden = msgs.length === 0;
+  if (bar.hidden) return;
+  const text = $('#context-text');
+  if (text) text.textContent = `≈${formatTokens(usage.used)} / ${formatTokens(usage.limit)}`;
+  const meter = bar.querySelector('i');
+  if (meter) meter.style.width = `${(usage.ratio * 100).toFixed(1)}%`;
+  bar.classList.toggle('warn', usage.ratio >= 0.8 && usage.ratio < 0.9);
+  bar.classList.toggle('danger', usage.ratio >= 0.9);
+}
 
 function updateChrome() {
   const session = S.session;
@@ -253,6 +281,7 @@ function updateChrome() {
   $('#topbar').classList.toggle('scrolled', has && scrolled);
   const send = $('#btn-send');
   send.disabled = !S.streaming && !$('#input').value.trim() && S.attachments.length === 0;
+  updateContextBar();
 }
 
 function syncSpeakerIcon() {
@@ -312,9 +341,10 @@ function stopStreaming() {
 
 function setBusy(busy) {
   S.streaming = busy;
+  $('#composer').classList.toggle('is-generating', busy);
   const send = $('#btn-send');
   send.classList.toggle('stop', busy);
-  send.disabled = false;
+  send.disabled = !busy && !$('#input').value.trim() && !S.attachments.length;
   send.setAttribute('aria-label', busy ? '停止生成' : '发送');
 }
 
@@ -347,6 +377,7 @@ async function sendMessage(text, { attachments = [] } = {}) {
     status: 'done',
   };
   session.messages.push(userMsg);
+  void persistSession(session, { ...session, messages: session.messages.slice() });
   appendUserBubble(userMsg);
 
   clearComposer();
@@ -381,7 +412,7 @@ async function runAssistant({ context = null, mergeInto = null } = {}) {
   const settle = () => {
     if (!mergeInto) { chat.finishAssistant(asst); return asst; }
     if (S.session !== session) {          // 生成期间切走了会话：不要改写当前画布
-      chat.discardMessage(asst);
+      chat.discardMessage(asst, session);
       return mergeInto;
     }
     const hasPayload = !!(asst.content || asst.reasoningContent || (asst.blocks && asst.blocks.length));
@@ -412,19 +443,21 @@ async function runAssistant({ context = null, mergeInto = null } = {}) {
         if (asst.title && !session.titleGenerated) {
           session.title = String(asst.title).slice(0, 120);
           session.titleGenerated = true;
-          updateChrome();
-          sidebar.render(S.sessions, session.id);
+          if (S.session === session) {
+            updateChrome();
+            sidebar.render(S.sessions, session.id);
+          }
         }
         chat.scheduleStreamRender();
       },
     });
     asst.status = 'done';
+    if (asst.usage?.prompt_tokens) session.lastPromptTokens = asst.usage.prompt_tokens;
     if (!asst.content && !asst.reasoningContent && !asst.refusal) {
-      asst.error = '模型没有返回内容，请重试。';
-      asst.status = 'error';
+      throw new ApiError('模型没有返回内容，请重试。', { type: 'empty_response' });
     }
     settle();
-    afterAnswer(asst, startedAt);
+    afterAnswer(session, asst);
   } catch (e) {
     if (e?.name === 'AbortError') {
       asst.status = 'done';
@@ -432,14 +465,14 @@ async function runAssistant({ context = null, mergeInto = null } = {}) {
       if (!asst.content && !asst.reasoningContent && !mergeInto) asst.content = '（已停止生成）';
       settle();
       toast('已停止生成');
-      afterAnswer(asst, startedAt, { partial: true });
+      afterAnswer(session, asst, { partial: true });
     } else {
-      handleApiError(e, asst, { mergeInto });
+      handleApiError(e, asst, { session, mergeInto });
     }
   } finally {
     setBusy(false);
     S.abort = null;
-    persistCurrent();
+    await persistSession(session);
     setTimeout(() => refreshBalance(false), 1200);
   }
 }
@@ -457,7 +490,7 @@ function mergeRegenerated(target, asst) {
   return merged;
 }
 
-function handleApiError(e, asst, { mergeInto = null } = {}) {
+function handleApiError(e, asst, { session, mergeInto = null } = {}) {
   const status = e?.status || 0;
   let msg = e?.message || '请求失败';
   if (status === 401) {
@@ -469,7 +502,7 @@ function handleApiError(e, asst, { mergeInto = null } = {}) {
     msg = '请求过于频繁（429），请稍后再试。';
   } else if (status === 400) {
     msg = `请求被拒绝：${e.message}`;
-  } else if (status === 0) {
+  } else if (status === 0 && e?.type !== 'stream_interrupted' && e?.type !== 'empty_response') {
     msg = (S.native || S.directWeb)
       ? '网络不可用：请检查网络，或稍后重试。'
       : '网络不可用：手机与运行 server.mjs 的电脑需在同一 Wi-Fi，且电脑未被防火墙拦截。';
@@ -477,9 +510,18 @@ function handleApiError(e, asst, { mergeInto = null } = {}) {
   asst.error = msg;
   asst.status = 'error';
   if (mergeInto) {
-    // 重新生成失败：保留原消息与已有版本，不写入失败版本
-    chat.discardMessage(asst);
-    chat.setSession(S.session);
+    const hasPayload = !!(asst.content || asst.reasoningContent || (asst.blocks && asst.blocks.length));
+    if (hasPayload && S.session === session) {
+      // 已有部分内容：作为新版本并入（与正常重新生成一致），不丢已生成内容
+      asst.error = '';
+      asst.status = 'done';
+      mergeRegenerated(mergeInto, asst);
+      chat.setSession(session);
+    } else {
+      // 纯失败：保留原消息与已有版本，不写入失败版本
+      chat.discardMessage(asst, session);
+      if (S.session === session) chat.setSession(session);
+    }
   } else {
     chat.finishAssistant(asst, { error: msg });
   }
@@ -487,27 +529,27 @@ function handleApiError(e, asst, { mergeInto = null } = {}) {
   haptic([12, 40, 12]);
 }
 
-function afterAnswer(asst, startedAt, { partial = false } = {}) {
-  const session = S.session;
-  if (!session) return;
+function afterAnswer(session, asst, { partial = false } = {}) {
   if (!session.title || !session.titleGenerated) {
     const firstUser = session.messages.find((m) => m.role === 'user');
     if (firstUser) session.title = (firstUser.content || '图片对话').slice(0, 24);
   }
+  try { addChat(asst.usage, asst.model); } catch { /* 统计失败不影响使用 */ }
+  if (S.session !== session || !S.sessions.includes(session)) return;
   updateChrome();
   sidebar.render(S.sessions, session.id);
-  persistCurrent();
-  try { addChat(asst.usage, asst.model); } catch { /* 统计失败不影响使用 */ }
   if (!partial && asst.content && S.settings.autoRead) speakMessage(asst);
 }
 
-async function persistCurrent() {
-  const s = S.session;
-  if (!s) return;
+function persistCurrent() {
+  return persistSession(S.session);
+}
+
+async function persistSession(s, snapshot = s) {
+  if (!s || !S.sessions.includes(s)) return;
   try {
-    await store.saveSession(s);
-    const i = S.sessions.findIndex((x) => x.id === s.id);
-    if (i >= 0) S.sessions[i] = s; else S.sessions.unshift(s);
+    await store.saveSession(snapshot);
+    s.updatedAt = snapshot.updatedAt;
     S.sessions.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || b.updatedAt - a.updatedAt);
   } catch (e) {
     console.warn('保存失败', e);
@@ -580,6 +622,8 @@ function moreMenu(msg) {
       <button class="side-item" data-a="regen">${icon('refresh', { size: 18 })} 重新生成</button>
       <button class="side-item" data-a="speak">${icon('speaker', { size: 18 })} 朗读回答</button>
       <button class="side-item" data-a="md">${icon('download', { size: 18 })} 导出为 Markdown</button>
+      <button class="side-item" data-a="copy-md">${icon('copy', { size: 18 })} 复制为 Markdown</button>
+      <button class="side-item" data-a="branch">${icon('sparkle', { size: 18 })} 从这里建分支</button>
       <button class="side-item set-danger" data-a="delete">${icon('trash', { size: 18 })} 删除这条回答</button>
     </div>`;
   const sheet = openSheet(el);
@@ -591,6 +635,8 @@ function moreMenu(msg) {
     else if (a === 'regen') regenerate(msg);
     else if (a === 'speak') speakMessage(msg);
     else if (a === 'md') downloadMarkdown(msg);
+    else if (a === 'copy-md') { await copyText(messageToMarkdown(msg)); toast('已复制 Markdown', { type: 'success' }); }
+    else if (a === 'branch') branchFromMessage(msg);
     else if (a === 'delete') {
       const ok = await confirmDialog({ title: '删除这条回答？', okText: '删除', danger: true });
       if (!ok) return;
@@ -903,6 +949,8 @@ function settingsCtx() {
     getVersion: () => S.serverInfo?.version || VERSION,
     getServerInfo: () => S.serverInfo,
     getUsage: () => summary(),
+    getPrompts: () => normalizePrompts(S.settings.prompts),
+    setPrompts: (list) => { store.saveSettings({ prompts: normalizePrompts(list) }); S.settings = store.settings; updateContextBar(); },
     resetUsage,
     openModelSheet: () => openModelSheet(settingsCtx()),
     sessionHasImages: () => !!S.session?.messages.some((m) => m.attachments?.some((a) => a.kind === 'image')),
@@ -918,8 +966,9 @@ function settingsCtx() {
     exportData,
     importData,
     clearAll: async () => {
-      await store.deleteAllSessions();
       S.sessions = [];
+      stopStreaming();
+      await store.deleteAllSessions();
       S.session = null;
       chat.setSession(null);
       updateChrome();
@@ -931,10 +980,44 @@ function settingsCtx() {
   };
 }
 
-async function exportSession(s) {
+async function exportSession(s, fmt = 'json') {
+  const name = safeFilename(s.title || 'chat');
+  if (fmt === 'jsonl') {
+    await downloadBlob(new Blob([sessionToJSONL(s) + '\n'], { type: 'application/jsonl' }), `${name}.jsonl`);
+    toast('已导出 JSONL', { type: 'success' });
+    return;
+  }
+  if (fmt === 'txt') {
+    await downloadBlob(new Blob([sessionToTXT(s)], { type: 'text/plain' }), `${name}.txt`);
+    toast('已导出 TXT', { type: 'success' });
+    return;
+  }
   const blob = new Blob([JSON.stringify({ app: 'deepseek-pocket', version: 1, sessions: [s] }, null, 2)], { type: 'application/json' });
-  await downloadBlob(blob, `deepseek-${(s.title || 'chat').slice(0, 20)}.json`);
+  await downloadBlob(blob, `${name}.json`);
   toast('已导出对话');
+}
+
+/** 从某条消息建分支：复制到该条为止，切到新会话 */
+async function branchFromMessage(msg) {
+  const src = S.session;
+  if (!src) return;
+  const idx = src.messages.findIndex((m) => m.id === msg.id);
+  if (idx < 0) return;
+  const copy = {
+    ...src,
+    id: uid('s'),
+    title: `${src.title || '未命名对话'} · 分支`,
+    messages: src.messages.slice(0, idx + 1).map((m) => JSON.parse(JSON.stringify(m))),
+    parentId: src.id,
+    parentTitle: src.title || '',
+    titleGenerated: true,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+  };
+  S.sessions.unshift(copy);
+  await store.saveSession(copy);
+  await switchSession(copy.id);
+  toast('已从这里创建分支', { type: 'success' });
 }
 
 async function exportData() {
@@ -997,6 +1080,7 @@ async function logout(force = false) {
     const ok = await confirmDialog({ title: '退出登录？', message: '本地对话不会删除，密钥会从本机移除。', okText: '退出', danger: true });
     if (!ok) return;
   }
+  stopStreaming();
   store.setKey('');
   S.key = '';
   S.envKey = false;
@@ -1206,7 +1290,7 @@ function bindUI() {
   $('#btn-sidebar-close')?.addEventListener('click', closeSidebar);
   $('#scrim').addEventListener('click', closeSidebar);
   $('#btn-model').addEventListener('click', () => openModelSheet(settingsCtx()));
-  $('#btn-new').addEventListener('click', () => { if (S.streaming) stopStreaming(); newSession(); });
+  $('#btn-new').addEventListener('click', () => newSession());
 
   // 输入
   const input = $('#input');
@@ -1468,7 +1552,7 @@ function handleDeepLinkScreen() {
     else if (screen === 'model') openModelSheet(settingsCtx());
     else if (screen === 'sidebar') openSidebar();
     else if (screen === 'search') openSearch();
-    else if (screen === 'new') { if (S.streaming) stopStreaming(); newSession(); }
+    else if (screen === 'new') newSession();
     else if (screen === 'reader') openReader({ getClient: () => S.client, onAsk: async () => {} }, { url: 'https://api-docs.deepseek.com/', title: 'DeepSeek API Docs' });
   }, 400);
 }

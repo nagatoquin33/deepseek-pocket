@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no" />
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob: https:; media-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' https://api.deepseek.com; base-uri 'self'" />
 <meta name="theme-color" content="#FFFFFF" />
-<meta name="app-version" content="1.3.1" />
+<meta name="app-version" content="1.4.0" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
@@ -83,8 +83,11 @@
     <main id="view" class="view">
       <div id="welcome" class="welcome">
         <div class="welcome-inner">
-          <img class="welcome-mark" src="./icons/deepseek-mark.png" width="88" height="88" alt="" />
+          <div class="welcome-orbit" aria-hidden="true">
+            <img class="welcome-mark" src="./icons/deepseek-mark.png" width="66" height="66" alt="" />
+          </div>
           <h2 class="welcome-title">嗨！今天想聊些什么？</h2>
+          <p class="welcome-sub">从一个问题开始，或者聊聊你的想法。</p>
           <div id="suggestions" class="suggestions" hidden></div>
         </div>
       </div>
@@ -95,6 +98,10 @@
     </main>
 
     <div id="composer-wrap" class="composer-wrap">
+      <div id="context-bar" class="context-bar" hidden>
+        <div class="context-meter"><i></i></div>
+        <span id="context-text"></span>
+      </div>
       <div id="attachments" class="attachments" hidden></div>
       <div id="composer" class="composer">
         <textarea id="input" class="input-area" rows="1" placeholder="发消息或按住说话"

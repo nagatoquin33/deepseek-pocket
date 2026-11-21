@@ -46,7 +46,7 @@ docs/                                # 本目录
 ```bash
 adb install -r android/dist/DeepSeekPocket-1.0.0.apk
 adb logcat -s DeepSeekPocket chromium
-# WebView 调试：chrome://inspect（壳内已开启 setWebContentsDebuggingEnabled）
+# WebView 调试：仅在本地构建时设置 DEBUG_WEBVIEW=1（PowerShell：$env:DEBUG_WEBVIEW='1'），再用 chrome://inspect
 adb shell am start -n com.deepseek.pocket/.MainActivity --ez demo true   # 离线演示
 ```
 

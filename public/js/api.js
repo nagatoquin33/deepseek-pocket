@@ -72,10 +72,31 @@ async function readSSE(res, onEvent) {
   const reader = res.body.getReader();
   const decoder = new TextDecoder('utf-8');
   let buf = '';
+  const interrupted = () => new ApiError('连接中断，回答未完整生成。可重新生成。', {
+    type: 'stream_interrupted', retryable: true,
+  });
   try {
     for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
+      const { done, value } = await reader.read().catch((error) => {
+        if (error?.name === 'AbortError') throw error;
+        throw interrupted();
+      });
+      if (done) {
+        // EOF：先冲刷 decoder 与残留 buffer，末行是 [DONE] 才算正常结束
+        buf += decoder.decode();
+        if (buf && !buf.endsWith('\n')) buf += '\n';
+        let sawDone = false;
+        let nl2;
+        while ((nl2 = buf.indexOf('\n')) >= 0) {
+          let line = buf.slice(0, nl2);
+          buf = buf.slice(nl2 + 1);
+          if (line.endsWith('\r')) line = line.slice(0, -1);
+          if (!line.startsWith('data:')) continue;
+          if (line.slice(5).trim() === '[DONE]') { sawDone = true; break; }
+        }
+        if (sawDone) { onEvent({ done: true }); return; }
+        throw interrupted();
+      }
       buf += decoder.decode(value, { stream: true });
       let nl;
       while ((nl = buf.indexOf('\n')) >= 0) {
@@ -86,7 +107,10 @@ async function readSSE(res, onEvent) {
         if (!line.startsWith('data:')) continue;
         const payload = line.slice(5).trim();
         if (!payload) continue;
-        if (payload === '[DONE]') { onEvent({ done: true }); continue; }
+        if (payload === '[DONE]') {
+          onEvent({ done: true });
+          return;
+        }
         let json;
         try { json = JSON.parse(payload); } catch { continue; }
         if (json && json.error) {

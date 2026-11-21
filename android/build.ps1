@@ -75,7 +75,10 @@ if ($LASTEXITCODE -ne 0) { throw "aapt2 compile 失败" }
 
 $baseApk = Join-Path $build 'base.apk'
 Write-Host "== aapt2 链接资源 ==" -ForegroundColor Cyan
+$debugArgs = @()
+if ($env:DEBUG_WEBVIEW -eq '1') { $debugArgs += '--debug-mode' }
 & $aapt2 link `
+    @debugArgs `
     -o $baseApk `
     -I $androidJar `
     --manifest (Join-Path $app 'AndroidManifest.xml') `

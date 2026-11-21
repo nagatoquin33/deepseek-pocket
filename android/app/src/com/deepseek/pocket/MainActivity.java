@@ -8,6 +8,7 @@ import android.content.ClipboardManager;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Insets;
@@ -111,7 +112,7 @@ public class MainActivity extends Activity {
         setupEdgeToEdge();
         setupBack();
         web.addJavascriptInterface(new Bridge(), "DSAndroid");
-        if (Build.VERSION.SDK_INT >= 19) WebView.setWebContentsDebuggingEnabled(true);
+        WebView.setWebContentsDebuggingEnabled((getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0);
 
         if (saved != null) {
             web.restoreState(saved);

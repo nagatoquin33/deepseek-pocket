@@ -3,6 +3,7 @@
  * ========================================================================= */
 
 import { renderMarkdown } from './render.js';
+import { promptsToMessages } from './prompts.js';
 import { ensureVariants, currentVariant } from './branch.js';
 import {
   esc, icon, uid, copyText, toast, formatTime, formatTokens, formatCost,
@@ -60,8 +61,14 @@ export function composeRequestBody({ session, settings, forContinue = false }) {
   if (hasImages && model !== 'deepseek-flash') model = 'deepseek-flash';
 
   const messages = toApiMessages(session, settings);
-  const sysPrompt = String(settings.systemPrompt || '').trim();
-  if (sysPrompt) messages.unshift({ role: 'system', content: sysPrompt });
+  // 有序提示词块（Prompt Manager 简化版）：按顺序注入，system 块自动合并
+  const promptMessages = promptsToMessages(settings.prompts);
+  if (!promptMessages.length) {
+    const legacy = String(settings.systemPrompt || '').trim();
+    if (legacy) messages.unshift({ role: 'system', content: legacy });
+  } else {
+    for (let i = promptMessages.length - 1; i >= 0; i--) messages.unshift(promptMessages[i]);
+  }
   const body = {
     model,
     messages,
@@ -479,9 +486,6 @@ function renderSources(citations, openSet) {
  * @param opts.openThink 已展开的思考块索引集合（保持用户交互状态）
  */
 export function renderAssistantBody(msg, { openThink = new Set(), streaming = false } = {}) {
-  if (msg.error) {
-    return `<div class="md"><p class="msg-error">${esc(msg.error)}</p></div>`;
-  }
   const parts = [];
   const citations = collectCitations(msg);
   const citeNumbers = new Set(citations.map((c) => c.n));
@@ -502,6 +506,7 @@ export function renderAssistantBody(msg, { openThink = new Set(), streaming = fa
   }
   if (streaming && msg.content) parts.push('<span class="streaming-caret"></span>');
   if (!streaming) parts.push(renderSources(collectCitations(msg)));
+  if (msg.error) parts.push(`<div class="md"><p class="msg-error">${esc(msg.error)}</p></div>`);
   return parts.join('');
 }
 
@@ -690,12 +695,12 @@ export class ChatView {
   }
 
   /** 丢弃一条消息（重新生成落空时的临时消息）：从消息数组与 DOM 中移除 */
-  discardMessage(msg) {
+  discardMessage(msg, session = this.session) {
     if (!msg) return;
     if (this.streamingMsg === msg) this.streamingMsg = null;
     const node = this.el.querySelector(`[data-id="${msg.id}"]`);
     if (node) node.remove();
-    if (this.session) this.session.messages = this.session.messages.filter((m) => m.id !== msg.id);
+    if (session) session.messages = session.messages.filter((m) => m.id !== msg.id);
   }
 
   /** 重绘单条消息（用于展开思考面板、切换回答版本等交互） */

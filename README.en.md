@@ -11,7 +11,7 @@ English · [中文](README.md)
 > This page mirrors the [Chinese README](README.md), which is the primary document when the two differ.
 
 DeepSeek on your phone, **running on your own open-platform (platform.deepseek.com) quota**.
-Deep thinking, smart search with citations, voice input and read-aloud, multiple sessions, system prompts and usage stats — all of it.
+Deep thinking, smart search with citations, voice input and read-aloud, multiple sessions, prompt blocks and usage stats — all of it.
 No build step, no frontend framework: Android is a native shell that talks to the API directly, and the browser gets a LAN server run by Node.
 
 > Unofficial client, not affiliated with DeepSeek. The UI is redrawn after the official app 2.8 and the whale icon is the official colour version; personal use only.
@@ -46,14 +46,14 @@ Redrawn after the official app 2.8: the home screen "Hi! What's on your mind tod
 
 | Settings | System prompt | Model selection |
 | --- | --- | --- |
-| ![Settings](docs/screenshots/08-settings.png) | ![System prompt](docs/screenshots/09-system-prompt.png) | ![Model](docs/screenshots/10-model.png) |
+| ![Settings](docs/screenshots/08-settings.png) | ![Prompts](docs/screenshots/16-prompts.png) | ![Model](docs/screenshots/10-model.png) |
 
 | Standalone search | Dark mode | Usage stats |
 | --- | --- | --- |
 | ![Search](docs/screenshots/11-search.png) | ![Dark](docs/screenshots/12-dark.png) | ![Usage](docs/screenshots/14-usage.png) |
 
 | Sign-in | Message branches | Android APK on a real device |
-| --- | --- |
+| --- | --- | --- |
 | ![Sign-in](docs/screenshots/01-login.png) | ![Branches](docs/screenshots/15-branches.png) | ![APK](docs/screenshots/13-android.png) |
 
 ---

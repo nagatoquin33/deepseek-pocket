@@ -12,5 +12,5 @@
     "MD060": false
   },
   "globs": ["**/*.md"],
-  "ignores": ["**/node_modules/**", "site/**", "android/app/assets/**", "android/build/**", "docs/CONTRACTS.md"]
+  "ignores": ["**/node_modules/**", "site/**", "android/app/assets/**", "android/build/**", "docs/CONTRACTS.md", ".ref/**"]
 }

@@ -9,7 +9,7 @@
 [中文](README.md) · [English](README.en.md)
 
 手机上的 DeepSeek，**用你自己的开放平台（platform.deepseek.com）额度**。
-深度思考、智能搜索与引用、语音输入与朗读、多会话、系统提示词、用量统计，一个不落。
+深度思考、智能搜索与引用、语音输入与朗读、多会话、提示词块、用量统计，一个不落。
 零构建、零前端框架：Android 用直连 API 的原生壳，浏览器用 Node 起一个局域网服务。
 
 > 非官方客户端，与深度求索无隶属关系。界面按官方 App 2.8 重绘，鲸鱼图标为官方彩色版，仅个人自用。
@@ -42,16 +42,16 @@
 | --- | --- | --- |
 | ![Markdown](docs/screenshots/05-markdown.png) | ![Mermaid](docs/screenshots/06-mermaid.png) | ![侧栏](docs/screenshots/07-sidebar.png) |
 
-| 设置 | 系统提示词 | 模型选择 |
+| 设置 | 提示词块 | 模型选择 |
 | --- | --- | --- |
-| ![设置](docs/screenshots/08-settings.png) | ![系统提示词](docs/screenshots/09-system-prompt.png) | ![模型](docs/screenshots/10-model.png) |
+| ![设置](docs/screenshots/08-settings.png) | ![提示词](docs/screenshots/16-prompts.png) | ![模型](docs/screenshots/10-model.png) |
 
 | 独立搜索 | 深色模式 | 用量统计 |
 | --- | --- | --- |
 | ![搜索](docs/screenshots/11-search.png) | ![深色](docs/screenshots/12-dark.png) | ![用量](docs/screenshots/14-usage.png) |
 
 | 登录 | 消息分支切换 | Android APK 实机 |
-| --- | --- |
+| --- | --- | --- |
 | ![登录](docs/screenshots/01-login.png) | ![分支](docs/screenshots/15-branches.png) | ![APK](docs/screenshots/13-android.png) |
 
 ---
@@ -78,7 +78,7 @@
 
 - 新建 / 切换 / 重命名 / 置顶 / 删除 / 长按菜单，自动标题，时间分组，全文搜索
 - 导出 / 导入 JSON（兼容本应用与 DeepSeek Chat 导出结构）
-- **系统提示词**：自定义（字数不设上限，会计入上下文 token）+ 6 套模板，作为 `system` 消息随请求发送
+- **提示词块**：有序 Prompt Manager——启用/禁用、上下移动、编辑、预设（通用/编程/翻译/精简），相邻 system 块自动合并；旧系统提示词自动迁移
 - **用量统计**：累计 token、缓存命中率、TTS 字符、ASR 时长与分项费用（只存本机，可清空）
 - 账号：开放平台余额展示与刷新；模型切换；主题（跟随系统/浅色/深色）、字号、触感
 
@@ -330,7 +330,7 @@ Android APK ── WebView(https://appassets.local, assets 拦截) ──┐
 | ZIP 历史导入导出 | ⚠️ JSON | 不含原始附件 |
 | 协议 | Chat Completions | 官方 Messages |
 
-本项目额外提供：Android APK 直连、本机代理模式、独立 Search API 面板、余额与用量统计、系统提示词、全面屏手势、132 项自动化测试与 CI 打包。
+本项目额外提供：Android APK 直连、本机代理模式、独立 Search API 面板、余额与用量统计、提示词块、上下文预算、全面屏手势、132 项自动化测试与 CI 打包。
 
 ---
 

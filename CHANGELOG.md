@@ -2,6 +2,21 @@
 
 本项目遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)；提交信息参考 Conventional Commits。
 
+## [1.4.0] - 2026-11-21
+
+### 新增
+
+- 提示词块（Prompt Manager 简化版）：有序块、启用/禁用、上下移动、编辑、四种预设；旧系统提示词自动迁移
+- 输入区上下文预算条：本地 token 估算 + 上次真实 prompt_tokens 校准，80%/90% 变色提示
+- 会话导出 JSONL / TXT；消息菜单新增「复制为 Markdown」「从这里建分支」
+- 官方 App 2.9 实测配色：品牌蓝 #426EFE / 深色 #507BF2，中性色 #F9F9FF / #10131A / #171717
+
+### 修复
+
+- 流式收尾：必须显式收到 [DONE] 才完成；EOF 前冲刷残留 buffer，避免误报中断
+- 重新生成被中断时保留已生成内容并并入新版本，不再丢弃
+- [DONE] 后不再主动 cancel 响应，消除 net::ERR_ABORTED 噪声与代理误判
+
 ## [1.3.1] - 2026-11-20
 
 ### 变更
@@ -114,6 +129,7 @@
 - 开放平台余额、费用估算、系统提示词、深色模式、PWA 安装
 - 132 项自动化测试；GitHub Actions 自动测试、打包 APK、tag 发布 Release
 
+[1.4.0]: https://github.com/nagatoquin33/deepseek-pocket/compare/v1.3.1...v1.4.0
 [1.3.1]: https://github.com/nagatoquin33/deepseek-pocket/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/nagatoquin33/deepseek-pocket/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/nagatoquin33/deepseek-pocket/compare/v1.1.1...v1.2.0

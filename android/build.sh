@@ -46,7 +46,10 @@ echo "== aapt2 编译资源 =="
 "$BT/aapt2" compile --dir "$APP/res" -o "$BUILD/res.zip"
 
 echo "== aapt2 链接资源 =="
+DEBUG_FLAG=""
+if [[ "${DEBUG_WEBVIEW:-0}" == 1 ]]; then DEBUG_FLAG="--debug-mode"; fi
 "$BT/aapt2" link \
+  $DEBUG_FLAG \
   -o "$BUILD/base.apk" \
   -I "$JAR" \
   --manifest "$APP/AndroidManifest.xml" \

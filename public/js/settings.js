@@ -3,6 +3,8 @@
  * ========================================================================= */
 
 import { esc, icon, toast, confirmDialog, promptDialog, formatNumber, openSheet } from './ui.js';
+import { estimateTokens } from './tokens.js';
+import { PROMPT_PRESETS, normalizePrompts, addPrompt, updatePrompt, removePrompt, movePrompt } from './prompts.js';
 
 const I = {
   user: '<svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="8.4" r="3.6"/><path d="M4.8 20c1.2-3.4 3.9-5 7.2-5s6 1.6 7.2 5"/></svg>',
@@ -101,6 +103,7 @@ export function openSettings(ctx) {
     else if (cur.id === 'voice') renderVoice();
     else if (cur.id === 'about') renderAbout();
     else if (cur.id === 'system') renderSystem();
+    else if (cur.id === 'prompts') renderPrompts();
     else if (cur.id === 'usage') renderUsage();
     bindCommon();
   };
@@ -167,7 +170,7 @@ export function openSettings(ctx) {
         ${rowLink({ ico: 'brain', name: '思考强度', value: (EFFORTS.find((e) => e.id === st.effort) || EFFORTS[1]).label, go: 'effort' })}
         ${rowSwitch({ ico: 'globe', name: '智能搜索', desc: '服务端检索，检索本身不计费', id: 'st-webSearch', on: st.webSearch })}
         ${rowSwitch({ ico: 'shield', name: '内容安全审核', desc: '输入输出经平台风险审核', id: 'st-safety', on: st.safety })}
-        ${rowLink({ ico: 'sparkle', name: '系统提示词', desc: '给模型的全局角色设定', value: st.systemPrompt ? `自定义 · ${st.systemPrompt.length} 字` : '默认', go: 'system' })}
+        ${rowLink({ ico: 'sparkle', name: '提示词', desc: '有序提示词块，随每次请求发送', value: `${(st.prompts || []).filter((p) => p.enabled).length}/${(st.prompts || []).length}`, go: 'prompts' })}
       </div>
 
       <div class="group-label">关于</div>
@@ -323,6 +326,72 @@ export function openSettings(ctx) {
       <div class="settings-version">统计只保存在本机；费用为估算，实际以开放平台账单为准</div>`;
   }
 
+  function renderPrompts() {
+    const list = ctx.getPrompts();
+    const enabled = list.filter((p) => p.enabled);
+    const tokens = estimateTokens(enabled.map((p) => p.content).join('\n'));
+    body.innerHTML = `
+      <div class="group-label">提示词块 · ${enabled.length}/${list.length} 启用 · ≈${tokens} tokens</div>
+      <div class="group-card">
+        ${list.map((p, i) => `
+          <div class="prompt-item ${p.enabled ? 'on' : ''}">
+            <button class="prompt-toggle" data-pact="toggle" data-id="${p.id}" aria-pressed="${p.enabled}" aria-label="启用"></button>
+            <button class="prompt-body" data-pact="edit" data-id="${p.id}">
+              <span class="row-name">${esc(p.name)}<span class="prompt-role">${p.role}</span></span>
+              <span class="row-desc">${esc(p.content.slice(0, 80) || '（空）')}</span>
+            </button>
+            <span class="prompt-side">
+              <button class="prompt-mini" data-pact="up" data-id="${p.id}" ${i === 0 ? 'disabled' : ''} aria-label="上移">↑</button>
+              <button class="prompt-mini" data-pact="down" data-id="${p.id}" ${i === list.length - 1 ? 'disabled' : ''} aria-label="下移">↓</button>
+              <button class="prompt-mini del" data-pact="del" data-id="${p.id}" aria-label="删除">×</button>
+            </span>
+          </div>`).join('')}
+      </div>
+      <button class="settings-add" data-pact="add">＋ 新增提示词块</button>
+      <div class="group-label">预设</div>
+      <div class="group-card">
+        ${PROMPT_PRESETS.map((pr) => `
+          <button class="set-row" data-pact="preset" data-id="${pr.id}">
+            <span class="row-main"><span class="row-name">${esc(pr.name)}</span></span><span class="row-value">${pr.prompts.length} 个块</span>
+            <span class="row-chev">${I.chev}</span>
+          </button>`).join('')}
+      </div>
+      <div class="settings-version">按顺序发送；相邻 system 块会合并为一条消息</div>`;
+
+    body.querySelectorAll('[data-pact]').forEach((el) => el.addEventListener('click', async () => {
+      const pact = el.dataset.pact;
+      const id = el.dataset.id;
+      let list = ctx.getPrompts();
+      if (pact === 'toggle') {
+        const cur = list.find((p) => p.id === id);
+        if (cur) list = updatePrompt(list, id, { enabled: !cur.enabled });
+      } else if (pact === 'up') list = movePrompt(list, id, -1);
+      else if (pact === 'down') list = movePrompt(list, id, 1);
+      else if (pact === 'del') {
+        const ok = await confirmDialog({ title: '删除这个提示词块？', okText: '删除', danger: true });
+        if (!ok) return;
+        list = removePrompt(list, id);
+      } else if (pact === 'add') {
+        list = addPrompt(list, { name: '新提示词', content: '' });
+      } else if (pact === 'edit') {
+        const cur = list.find((p) => p.id === id);
+        if (!cur) return;
+        const name = await promptDialog({ title: '块名称', value: cur.name });
+        if (name !== null) list = updatePrompt(list, id, { name });
+        const content = await promptDialog({ title: '提示词内容', value: cur.content, multiline: true, okText: '保存' });
+        if (content !== null) list = updatePrompt(list, id, { content });
+      } else if (pact === 'preset') {
+        const pr = PROMPT_PRESETS.find((x) => x.id === id);
+        if (!pr) return;
+        const ok = await confirmDialog({ title: `应用「${pr.name}」预设？`, message: '会替换当前全部提示词块', okText: '应用' });
+        if (!ok) return;
+        list = normalizePrompts(pr.prompts.map((p) => ({ ...p })));
+      }
+      ctx.setPrompts(list);
+      render();
+    }));
+  }
+
   function renderAbout() {
     const info = ctx.getServerInfo?.() || {};
     body.innerHTML = `
@@ -344,7 +413,7 @@ export function openSettings(ctx) {
   const bindCommon = () => {
     body.querySelectorAll('[data-go]').forEach((el) => el.addEventListener('click', () => {
       const id = el.dataset.go;
-      const titles = { account: '账号管理', data: '数据管理', theme: '外观', font: '字体大小', lang: '语言', region: '地区', effort: '思考强度', voice: '语音', about: '关于', system: '系统提示词', usage: '用量统计' };
+      const titles = { account: '账号管理', data: '数据管理', theme: '外观', font: '字体大小', lang: '语言', region: '地区', effort: '思考强度', voice: '语音', about: '关于', system: '系统提示词', usage: '用量统计', prompts: '提示词' };
       push(id, titles[id] || '设置');
     }));
 
