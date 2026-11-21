@@ -30,10 +30,12 @@ export function messagesTokens(messages) {
   return total;
 }
 
-export function contextUsage(messages, limit = 128000, lastPromptTokens = 0) {
+export const CONTEXT_LIMIT = 1000000;
+
+export function contextUsage(messages, limit = CONTEXT_LIMIT, lastPromptTokens = 0) {
   const estimated = messagesTokens(messages);
   const used = Math.max(estimated, Number(lastPromptTokens) || 0);
-  const max = Math.max(1, Number(limit) || 128000);
+  const max = Math.max(1, Number(limit) || CONTEXT_LIMIT);
   return { used, limit: max, ratio: Math.min(1, used / max) };
 }
 

@@ -4,6 +4,8 @@
 
 import { renderMarkdown } from './render.js';
 import { promptsToMessages } from './prompts.js';
+import { memoriesToMessage } from './memory.js';
+import { CONTEXT_LIMIT, messagesTokens } from './tokens.js';
 import { ensureVariants, currentVariant } from './branch.js';
 import {
   esc, icon, uid, copyText, toast, formatTime, formatTokens, formatCost,
@@ -15,7 +17,7 @@ import {
 const WEEKDAY_ZH = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
 const WEEKDAY_EN = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-function reminderText(settings, ts = Date.now()) {
+export function reminderText(settings, ts = Date.now()) {
   const d = new Date(ts);
   const ymd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   const isZh = /[\u4e00-\u9fa5]/.test(settings.language || '');
@@ -29,7 +31,7 @@ export function toApiMessages(session, settings) {
   const out = [];
   for (const m of session.messages) {
     if (m.role === 'user') {
-      out.push({ role: 'latest_reminder', content: reminderText(settings, m.createdAt) });
+      out.push({ role: 'latest_reminder', content: m.reminder || reminderText(settings, m.createdAt) });
       if (m.attachments && m.attachments.length) {
         const parts = [];
         if (m.content) parts.push({ type: 'text', text: m.content });
@@ -54,21 +56,45 @@ export function toApiMessages(session, settings) {
   return out;
 }
 
+/** 上下文预算：超出 82% 时从最旧消息开始裁剪，保留最近约 55% 的内容 */
+export function trimConversation(messages, limit = CONTEXT_LIMIT) {
+  if (!Array.isArray(messages) || !messages.length) return { messages: [], trimmed: 0 };
+  const total = messagesTokens(messages);
+  const budget = Math.floor(limit * 0.82);
+  if (total <= budget) return { messages, trimmed: 0 };
+  const keepBudget = Math.floor(limit * 0.55);
+  const keep = [];
+  let used = 0;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const t = messagesTokens([messages[i]]);
+    if (keep.length && used + t > keepBudget) break;
+    keep.unshift(messages[i]);
+    used += t;
+  }
+  return { messages: keep, trimmed: messages.length - keep.length };
+}
+
 /** 组装一次 /chat/completions 请求体 */
 export function composeRequestBody({ session, settings, forContinue = false }) {
   const hasImages = session.messages.some((m) => m.attachments?.some((a) => a.kind === 'image'));
   let model = session.model || settings.model;
   if (hasImages && model !== 'deepseek-flash') model = 'deepseek-flash';
 
-  const messages = toApiMessages(session, settings);
+  const history = toApiMessages(session, settings);
   // 有序提示词块（Prompt Manager 简化版）：按顺序注入，system 块自动合并
   const promptMessages = promptsToMessages(settings.prompts);
   if (!promptMessages.length) {
     const legacy = String(settings.systemPrompt || '').trim();
-    if (legacy) messages.unshift({ role: 'system', content: legacy });
-  } else {
-    for (let i = promptMessages.length - 1; i >= 0; i--) messages.unshift(promptMessages[i]);
+    if (legacy) promptMessages.push({ role: 'system', content: legacy });
   }
+  const memory = memoriesToMessage(settings.memories);
+  const { messages: kept, trimmed } = trimConversation(history, CONTEXT_LIMIT);
+  const messages = [
+    ...promptMessages,
+    ...(memory ? [memory] : []),
+    ...(trimmed ? [{ role: 'system', content: `（较早的 ${trimmed} 条消息已按上下文预算省略）` }] : []),
+    ...kept,
+  ];
   const body = {
     model,
     messages,

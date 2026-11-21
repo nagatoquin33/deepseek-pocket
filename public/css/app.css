@@ -815,7 +815,7 @@ code, pre { font-family: var(--mono); }
 .math-fallback { font-size: .9em; opacity: .88; }
 
 /* -------------------------------- 抽屉 --------------------------------- */
-.modal-wrap, .sheet-wrap { position: fixed; inset: 0; z-index: 40; display: flex; }
+.modal-wrap, .sheet-wrap { position: fixed; inset: 0; z-index: 90; display: flex; }
 .modal-wrap { align-items: center; justify-content: center; padding: 24px; }
 .modal-mask, .sheet-mask { position: absolute; inset: 0; background: rgba(14, 18, 28, .42); backdrop-filter: blur(3px); opacity: 0; transition: opacity .2s ease; }
 .modal-wrap.in .modal-mask, .sheet-wrap.in .sheet-mask { opacity: 1; }
@@ -1332,3 +1332,8 @@ code, pre { font-family: var(--mono); }
   border-left: 3px solid var(--warn);
   border-radius: 8px; padding: 8px 10px; color: var(--text);
 }
+
+
+/* 设置 → 模型页：名称与说明分两行 */
+.set-row[data-pick] .row-main { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.set-row[data-pick] .row-desc { font-size: 12.5px; }

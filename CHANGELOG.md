@@ -2,6 +2,20 @@
 
 本项目遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)；提交信息参考 Conventional Commits。
 
+## [1.5.0] - 2026-11-21
+
+### 新增
+
+- 1M 上下文：预算条按 1M 计算；超过 82% 自动裁剪较早消息，并在请求中标注省略条数
+- 长期记忆：设置 → 记忆，可增删改/开关，作为 system 消息注入每次请求
+- 设置 → 模型：独立的模型页（含思考/搜索开关），不再跳回对话界面
+
+### 修复
+
+- 设置页内弹窗被设置页遮挡：modal/sheet 层级提到设置页之上，提示词编辑/删除确认恢复可用
+- 右上角加号在已存在空对话时重复创建：现在复用当前空对话并聚焦输入框
+- 每轮 latest_reminder 在发送时固化，避免修改设置后重写历史前缀、拉低缓存命中
+
 ## [1.4.1] - 2026-11-21
 
 ### 变更
@@ -137,6 +151,7 @@
 - 开放平台余额、费用估算、系统提示词、深色模式、PWA 安装
 - 132 项自动化测试；GitHub Actions 自动测试、打包 APK、tag 发布 Release
 
+[1.5.0]: https://github.com/nagatoquin33/deepseek-pocket/compare/v1.4.1...v1.5.0
 [1.4.1]: https://github.com/nagatoquin33/deepseek-pocket/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/nagatoquin33/deepseek-pocket/compare/v1.3.1...v1.4.0
 [1.3.1]: https://github.com/nagatoquin33/deepseek-pocket/compare/v1.3.0...v1.3.1

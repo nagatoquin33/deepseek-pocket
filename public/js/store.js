@@ -6,6 +6,7 @@
 import { uid } from './ui.js';
 import { ensureVariants } from './branch.js';
 import { DEFAULT_PROMPTS, normalizePrompts, migrateLegacy } from './prompts.js';
+import { normalizeMemories } from './memory.js';
 
 const DB_NAME = 'deepseek-pocket';const DB_VER = 1;
 const SS = 'sessions';
@@ -37,6 +38,7 @@ export const DEFAULT_SETTINGS = {
   nickname: 'DeepSeek 用户',
   systemPrompt: '',
   prompts: DEFAULT_PROMPTS.map((p) => ({ ...p })),
+  memories: [],
 };
 
 /* ------------------------------ localStorage ------------------------------ */
@@ -119,6 +121,7 @@ export const store = {
     } else {
       this.settings.prompts = normalizePrompts(this.settings.prompts);
     }
+    this.settings.memories = normalizeMemories(this.settings.memories);
     this.ui = { ...this.ui, ...lsGet(KEY_UI, {}) };
     try {
       const db = await openDB();

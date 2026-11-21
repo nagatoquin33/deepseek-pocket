@@ -6,10 +6,11 @@ import { ApiError, createClient, normalizeBalance, isNativeShell, isDirectHost }
 import { createMockClient } from './mock-client.js';
 import { addChat, addTTS, addASR, summary, resetUsage } from './usage.js';
 import { normalizePrompts, migrateLegacy } from './prompts.js';
-import { contextUsage } from './tokens.js';
+import { normalizeMemories, addMemory, updateMemory, removeMemory } from './memory.js';
+import { contextUsage, CONTEXT_LIMIT } from './tokens.js';
 import { sessionToJSONL, sessionToTXT, messageToMarkdown, safeFilename } from './exporter.js';
 import { store } from './store.js';
-import { ChatView, composeRequestBody, applyChunk } from './chat.js';
+import { ChatView, composeRequestBody, applyChunk, reminderText } from './chat.js';
 import { ensureVariants, addVariant, switchVariant } from './branch.js';
 import { openSettings, openModelSheet, maskKey } from './settings.js';
 import { openSearchPanel, openReader } from './search.js';
@@ -132,6 +133,13 @@ function enterDemo() {
 
 function newSession({ silent = false } = {}) {
   if (S.streaming) stopStreaming();
+  // 已在新对话时不再重复创建空会话，只把焦点交还输入框
+  if (S.session && S.session.messages.length === 0) {
+    chat.setSession(S.session);
+    updateChrome();
+    if (!silent) { haptic(6); $('#input')?.focus(); }
+    return S.session;
+  }
   const session = {
     id: uid('s'),
     title: '',
@@ -157,6 +165,19 @@ function newSession({ silent = false } = {}) {
 function ensureSession() {
   if (!S.session) return newSession({ silent: true });
   return S.session;
+}
+
+/** 旧消息补一次 reminder 快照，之后改设置不会重写历史前缀 */
+function ensureSessionReminders(session) {
+  if (!session || !Array.isArray(session.messages)) return;
+  let changed = false;
+  for (const m of session.messages) {
+    if (m.role === 'user' && !m.reminder) {
+      m.reminder = reminderText(S.settings, m.createdAt);
+      changed = true;
+    }
+  }
+  if (changed) persistCurrent();
 }
 
 async function switchSession(id) {
@@ -254,7 +275,7 @@ function updateContextBar() {
   const msgs = session ? session.messages.slice() : [];
   const draft = $('#input')?.value.trim();
   if (draft) msgs.push({ role: 'user', content: draft });
-  const usage = contextUsage(msgs, 128000, session?.lastPromptTokens || 0);
+  const usage = contextUsage(msgs, CONTEXT_LIMIT, session?.lastPromptTokens || 0);
   bar.hidden = msgs.length === 0;
   if (bar.hidden) return;
   const text = $('#context-text');
@@ -379,6 +400,7 @@ async function sendMessage(text, { attachments = [] } = {}) {
     content,
     attachments: attachments.length ? attachments : undefined,
     createdAt: Date.now(),
+    reminder: reminderText(S.settings),
     status: 'done',
   };
   session.messages.push(userMsg);
@@ -963,6 +985,10 @@ function settingsCtx() {
       updateChrome();
     },
     setPrompts: (list) => { store.saveSettings({ prompts: normalizePrompts(list) }); S.settings = store.settings; updateContextBar(); },
+    getMemories: () => normalizeMemories(S.settings.memories),
+    addMemory: (text) => { store.saveSettings({ memories: addMemory(S.settings.memories, text) }); S.settings = store.settings; },
+    updateMemory: (id, patch) => { store.saveSettings({ memories: updateMemory(S.settings.memories, id, patch) }); S.settings = store.settings; },
+    removeMemory: (id) => { store.saveSettings({ memories: removeMemory(S.settings.memories, id) }); S.settings = store.settings; },
     resetUsage,
     openModelSheet: () => openModelSheet(settingsCtx()),
     sessionHasImages: () => !!S.session?.messages.some((m) => m.attachments?.some((a) => a.kind === 'image')),
@@ -1536,6 +1562,7 @@ async function enterMain({ silent = false } = {}) {
   }
   await loadSessions();
   if (S.session) {
+    ensureSessionReminders(S.session);
     chat.setSession(S.session);
   } else {
     chat.setSession(null);

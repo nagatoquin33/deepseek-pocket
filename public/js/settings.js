@@ -75,6 +75,16 @@ export function openSettings(ctx) {
 
   const s = () => ctx.settings();
   const save = (patch) => { ctx.saveSettings(patch); ctx.applySettings(); };
+  const swBind = (id, key) => {
+    const el = body.querySelector(`#${id}`);
+    if (!el) return;
+    el.addEventListener('click', () => {
+      const next = !s()[key];
+      save({ [key]: next });
+      el.setAttribute('aria-checked', String(next));
+      if (key === 'autoRead') ctx.syncSpeakerIcon();
+    });
+  };
 
   const goBack = () => {
     stack.pop();
@@ -104,6 +114,8 @@ export function openSettings(ctx) {
     else if (cur.id === 'about') renderAbout();
     else if (cur.id === 'system') renderSystem();
     else if (cur.id === 'prompts') renderPrompts();
+    else if (cur.id === 'model') renderModel();
+    else if (cur.id === 'memory') renderMemory();
     else if (cur.id === 'usage') renderUsage();
     bindCommon();
   };
@@ -165,12 +177,13 @@ export function openSettings(ctx) {
 
       <div class="group-label">对话</div>
       <div class="group-card">
-        ${rowLink({ ico: 'sparkle', name: '模型', value: modelName, act: 'model' })}
+        ${rowLink({ ico: 'sparkle', name: '模型', value: modelName, go: 'model' })}
         ${rowSwitch({ ico: 'brain', name: '深度思考', id: 'st-thinking', on: st.thinking })}
         ${rowLink({ ico: 'brain', name: '思考强度', value: (EFFORTS.find((e) => e.id === st.effort) || EFFORTS[1]).label, go: 'effort' })}
         ${rowSwitch({ ico: 'globe', name: '智能搜索', desc: '服务端检索，检索本身不计费', id: 'st-webSearch', on: st.webSearch })}
         ${rowSwitch({ ico: 'shield', name: '内容安全审核', desc: '输入输出经平台风险审核', id: 'st-safety', on: st.safety })}
         ${rowLink({ ico: 'sparkle', name: '提示词', desc: '有序提示词块，随每次请求发送', value: `${(st.prompts || []).filter((p) => p.enabled).length}/${(st.prompts || []).length}`, go: 'prompts' })}
+        ${rowLink({ ico: 'user', name: '记忆', desc: '长期偏好，作为 system 注入每次请求', value: `${(st.memories || []).filter((m) => m.enabled).length}/${(st.memories || []).length}`, go: 'memory' })}
       </div>
 
       <div class="group-label">关于</div>
@@ -217,6 +230,7 @@ export function openSettings(ctx) {
         ${rowLink({ ico: 'data', name: '导出全部对话', desc: 'JSON 文件，可备份到其它设备', act: 'export' })}
         ${rowLink({ ico: 'data', name: '导入对话', desc: '导入后替换当前全部对话', act: 'import' })}
         ${rowLink({ ico: 'data', name: '清空全部对话', desc: '不可恢复', act: 'clear', danger: true })}
+        ${rowLink({ ico: 'data', name: '上下文窗口', desc: '超出 82% 自动裁剪较早消息', value: '1M tokens' })}
       </div>
       <div class="settings-version">存储位置：${ctx.getBackend()} · 不经过任何服务器</div>
     `;
@@ -392,6 +406,69 @@ export function openSettings(ctx) {
     }));
   }
 
+  function renderModel() {
+    const st = ctx.settings();
+    const cur = ctx.sessionModel();
+    body.innerHTML = `
+      <div class="group-label">模型（仅影响当前对话）</div>
+      <div class="group-card">
+        ${MODELS.map((m) => `
+          <button class="set-row" data-pick="${m.id}">
+            <span class="row-ico">${icon(m.icon === 'brain' ? 'brain' : 'sparkle', { size: 20 })}</span>
+            <span class="row-main"><span class="row-name">${esc(m.name)}</span><span class="row-desc">${esc(m.desc)}</span></span>
+            ${cur === m.id ? `<span class="row-value">${icon('check', { size: 18 })}</span>` : ''}
+          </button>`).join('')}
+      </div>
+      <div class="group-label">本轮能力</div>
+      <div class="group-card">
+        ${rowSwitch({ ico: 'brain', name: '深度思考', id: 'md-thinking', on: st.thinking })}
+        ${rowSwitch({ ico: 'globe', name: '智能搜索', id: 'md-websearch', on: st.webSearch })}
+      </div>
+      <div class="settings-version">模型按会话记忆，新对话继承上次选择；能力开关与模型解耦</div>`;
+    body.querySelectorAll('[data-pick]').forEach((b) => b.addEventListener('click', async () => {
+      await ctx.setSessionModel(b.dataset.pick);
+      render();
+    }));
+    swBind('md-thinking', 'thinking');
+    swBind('md-websearch', 'webSearch');
+  }
+
+  function renderMemory() {
+    const list = ctx.getMemories();
+    const enabled = list.filter((m) => m.enabled).length;
+    body.innerHTML = `
+      <div class="group-label">长期记忆 · ${enabled}/${list.length} 启用</div>
+      <div class="group-card">
+        ${list.length ? list.map((m) => `
+          <div class="prompt-item ${m.enabled ? 'on' : ''}">
+            <button class="prompt-toggle" data-mem="toggle" data-id="${m.id}" aria-pressed="${m.enabled}" aria-label="启用"></button>
+            <button class="prompt-body" data-mem="edit" data-id="${m.id}"><span class="row-name">${esc(m.text)}</span></button>
+            <span class="prompt-side"><button class="prompt-mini del" data-mem="del" data-id="${m.id}" aria-label="删除">×</button></span>
+          </div>`).join('') : '<div class="set-row"><span class="row-main"><span class="row-desc">还没有记忆。添加后会在每次请求里作为 system 消息注入。</span></span></div>'}
+      </div>
+      <button class="settings-add" data-mem="add">＋ 添加记忆</button>
+      <div class="settings-version">记忆只保存在本机；关闭开关后不注入；适合写称呼、城市、职业、回答偏好</div>`;
+    body.querySelectorAll('[data-mem]').forEach((el) => el.addEventListener('click', async () => {
+      const act = el.dataset.mem;
+      const id = el.dataset.id;
+      if (act === 'add') {
+        const text = await promptDialog({ title: '添加记忆', placeholder: '例如：我在上海，偏好简洁的中文回答', multiline: true, okText: '保存' });
+        if (text) { ctx.addMemory(text); render(); }
+      } else if (act === 'edit') {
+        const cur = list.find((m) => m.id === id);
+        if (!cur) return;
+        const text = await promptDialog({ title: '编辑记忆', value: cur.text, multiline: true, okText: '保存' });
+        if (text !== null) { ctx.updateMemory(id, { text }); render(); }
+      } else if (act === 'toggle') {
+        const cur = list.find((m) => m.id === id);
+        if (cur) { ctx.updateMemory(id, { enabled: !cur.enabled }); render(); }
+      } else if (act === 'del') {
+        const ok = await confirmDialog({ title: '删除这条记忆？', okText: '删除', danger: true });
+        if (ok) { ctx.removeMemory(id); render(); }
+      }
+    }));
+  }
+
   function renderAbout() {
     const info = ctx.getServerInfo?.() || {};
     body.innerHTML = `
@@ -413,20 +490,10 @@ export function openSettings(ctx) {
   const bindCommon = () => {
     body.querySelectorAll('[data-go]').forEach((el) => el.addEventListener('click', () => {
       const id = el.dataset.go;
-      const titles = { account: '账号管理', data: '数据管理', theme: '外观', font: '字体大小', lang: '语言', region: '地区', effort: '思考强度', voice: '语音', about: '关于', system: '系统提示词', usage: '用量统计', prompts: '提示词' };
+      const titles = { account: '账号管理', data: '数据管理', theme: '外观', font: '字体大小', lang: '语言', region: '地区', effort: '思考强度', voice: '语音', about: '关于', system: '系统提示词', usage: '用量统计', prompts: '提示词', model: '模型', memory: '记忆' };
       push(id, titles[id] || '设置');
     }));
 
-    const swBind = (id, key) => {
-      const el = body.querySelector(`#${id}`);
-      if (!el) return;
-      el.addEventListener('click', () => {
-        const next = !s()[key];
-        save({ [key]: next });
-        el.setAttribute('aria-checked', String(next));
-        if (key === 'autoRead') ctx.syncSpeakerIcon();
-      });
-    };
     swBind('st-thinking', 'thinking');
     swBind('st-webSearch', 'webSearch');
     swBind('st-safety', 'safety');
