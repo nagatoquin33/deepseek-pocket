@@ -2,6 +2,14 @@
 
 本项目遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)；提交信息参考 Conventional Commits。
 
+## [1.4.1] - 2026-11-21
+
+### 变更
+
+- 模型选择改为会话级：顶栏显示当前模型，切换只影响当前对话，新对话继承上次选择
+- 不做「快速 / 专家 / 识图」模式选择器：官方已弃用该三模式，改为自由选模型；能力开关与模型解耦
+- 更正官方 APK 研究报告，注明三模式为历史形态
+
 ## [1.4.0] - 2026-11-21
 
 ### 新增
@@ -129,6 +137,7 @@
 - 开放平台余额、费用估算、系统提示词、深色模式、PWA 安装
 - 132 项自动化测试；GitHub Actions 自动测试、打包 APK、tag 发布 Release
 
+[1.4.1]: https://github.com/nagatoquin33/deepseek-pocket/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/nagatoquin33/deepseek-pocket/compare/v1.3.1...v1.4.0
 [1.3.1]: https://github.com/nagatoquin33/deepseek-pocket/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/nagatoquin33/deepseek-pocket/compare/v1.2.0...v1.3.0

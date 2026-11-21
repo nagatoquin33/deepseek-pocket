@@ -529,7 +529,7 @@ export function openModelSheet(ctx) {
     body.innerHTML = `
       <div class="settings-section" style="margin-top:4px">
         ${MODELS.map((m) => `
-          <button class="model-option ${s.model === m.id ? 'on' : ''}" data-model="${m.id}">
+          <button class="model-option ${ctx.sessionModel() === m.id ? 'on' : ''}" data-model="${m.id}">
             <span class="model-ico">${icon(m.icon === 'brain' ? 'brain' : 'sparkle', { size: 18 })}</span>
             <span style="flex:1;min-width:0">
               <span class="model-name">${esc(m.name)}</span>
@@ -546,9 +546,7 @@ export function openModelSheet(ctx) {
     body.querySelectorAll('[data-model]').forEach((b) => b.addEventListener('click', () => {
       const id = b.dataset.model;
       if (id === 'deepseek-v4-pro' && ctx.sessionHasImages()) { toast('V4 Pro 不支持图片，请改用 Flash'); return; }
-      saveSettings({ model: id });
-      ctx.applySettings();
-      render();
+      ctx.setSessionModel(id).then(() => render());
     }));
     body.querySelector('#m-thinking')?.addEventListener('click', (e) => {
       const next = !settings().thinking;

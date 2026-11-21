@@ -27,8 +27,8 @@ const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
 
 const VERSION = document.querySelector('meta[name="app-version"]')?.content || '1.0.0';
 const MODEL_LABEL = {
-  'deepseek-flash': 'DeepSeek',
-  'deepseek-v4-pro': 'DeepSeek Pro',
+  'deepseek-flash': 'DeepSeek V4.1',
+  'deepseek-v4-pro': 'DeepSeek V4 Pro',
 };
 
 const S = {
@@ -160,6 +160,11 @@ function ensureSession() {
 }
 
 async function switchSession(id) {
+  // 旧会话没有 model 字段时继承当前默认模型
+  try {
+    const target = S.sessions.find((s) => s.id === id);
+    if (target && !target.model) target.model = S.settings.model;
+  } catch { /* ignore */ }
   if (S.streaming) stopStreaming();
   const found = S.sessions.find((s) => s.id === id) || await store.getSession(id);
   if (!found) return;
@@ -264,7 +269,7 @@ function updateChrome() {
   const session = S.session;
   const has = !!session && session.messages.length > 0;
   $('#chip-title').textContent = session?.title || '新对话';
-  $('#chip-model').textContent = 'Deepseek Chat';
+  $('#chip-model').textContent = MODEL_LABEL[session?.model || S.settings.model] || 'DeepSeek';
   const composer = $('#composer');
   const hasText = !!$('#input').value.trim() || S.attachments.length > 0;
   composer.classList.toggle('has-text', hasText);
@@ -950,6 +955,13 @@ function settingsCtx() {
     getServerInfo: () => S.serverInfo,
     getUsage: () => summary(),
     getPrompts: () => normalizePrompts(S.settings.prompts),
+    sessionModel: () => S.session?.model || S.settings.model,
+    setSessionModel: async (id) => {
+      if (S.session) { S.session.model = id; await persistCurrent(); }
+      store.saveSettings({ model: id });
+      S.settings = store.settings;
+      updateChrome();
+    },
     setPrompts: (list) => { store.saveSettings({ prompts: normalizePrompts(list) }); S.settings = store.settings; updateContextBar(); },
     resetUsage,
     openModelSheet: () => openModelSheet(settingsCtx()),

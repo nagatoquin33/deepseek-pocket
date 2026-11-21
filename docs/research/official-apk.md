@@ -4,6 +4,8 @@
 > 解包：apktool 3.0.3 → `.ref/apk`（资源，`apktool d -f --no-src`）、`.ref/apk-src`（smali，`apktool d -f -r`）
 > 复现：`apktool d -f -o .ref/apk "参考/deepseek.apk"`；`.ref` 已在 .gitignore 中，本文所有证据路径均为本地临时产物
 
+**后续更正（评测时确认）**：报告中的「快速 / 专家 / 识图」三模式是所分析 2.9.0 构建的历史形态；当前官方 App 已弃用模式选择器，改为直接自由选择模型。实现时**不要**再做模式胶囊，应以模型选择器为一等入口，能力（思考/搜索/图片）与模型解耦。
+
 ## 0. 结论速览
 
 1. 官方 App 是**单 Activity + 纯 Jetpack Compose**（`res/layout` 仅剩 3 个 AppCompat 对话框 XML），设计系统为 **自建 `DeepSeekTheme` + Material3 `ColorScheme` + M3 默认 Typography**；UI 层无自定义字体（APK 内 ttf 仅 `assets/org/scilab/...` 数学公式字体）。

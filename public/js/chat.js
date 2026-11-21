@@ -57,7 +57,7 @@ export function toApiMessages(session, settings) {
 /** 组装一次 /chat/completions 请求体 */
 export function composeRequestBody({ session, settings, forContinue = false }) {
   const hasImages = session.messages.some((m) => m.attachments?.some((a) => a.kind === 'image'));
-  let model = settings.model;
+  let model = session.model || settings.model;
   if (hasImages && model !== 'deepseek-flash') model = 'deepseek-flash';
 
   const messages = toApiMessages(session, settings);
